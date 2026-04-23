@@ -1,20 +1,27 @@
 CompileFlags:
-    Remove: [-f*, -m*]
-    Add: [
-            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_driver_gpio/include",
-            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_driver_i2c/include",
-            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_driver_spi/include",
-            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_common/include",
-            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_hw_support/include",
-            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/soc/include",
-            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/soc/esp32s3/include",
-            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/hal/include",
-            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/hal/esp32s3/include",
-            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_rom/include"
-         ]
+  Remove:
+    - -mlongcalls
+    - -mlong-calls
+    - -fno-shrink-wrap
+    - -fstrict-volatile-bitfields
+    - -fno-tree-switch-conversion
+  Add:
+    - -isystem/home/i4n/.espressif/tools/esp-clang/esp-19.1.2_20250312/esp-clang/lib/clang/19/include
+    - -isystem/home/i4n/.espressif/tools/esp-clang/esp-19.1.2_20250312/esp-clang/lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include
+    - -isystem/home/i4n/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/xtensa-esp-elf/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_driver_gpio/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_driver_i2c/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_driver_spi/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_common/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_hw_support/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/soc/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/soc/esp32s3/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/hal/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/hal/esp32s3/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_rom/include
 
 InlayHints:
-    Enabled: true
+  Enabled: true
 
 Diagnostics:
-    UnusedIncludes: false
+  UnusedIncludes: false
