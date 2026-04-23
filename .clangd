@@ -1,0 +1,20 @@
+CompileFlags:
+    Remove: [-f*, -m*]
+    Add: [
+            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_driver_gpio/include",
+            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_driver_i2c/include",
+            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_driver_spi/include",
+            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_common/include",
+            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_hw_support/include",
+            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/soc/include",
+            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/soc/esp32s3/include",
+            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/hal/include",
+            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/hal/esp32s3/include",
+            "-I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_rom/include"
+         ]
+
+InlayHints:
+    Enabled: true
+
+Diagnostics:
+    UnusedIncludes: false
