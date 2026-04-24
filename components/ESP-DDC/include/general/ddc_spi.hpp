@@ -1,4 +1,4 @@
-
+#pragma once
 /* Includes */
 #include "driver/spi_common.h"
 #include "hal/spi_types.h"

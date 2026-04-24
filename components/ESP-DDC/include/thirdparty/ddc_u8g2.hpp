@@ -11,6 +11,7 @@
 /*      - https://github.com/mkfrey/u8g2-hal-esp-idf */
 /*===================================================*/
 
+#pragma once
 
 /* Includes */
 #include <cstring>

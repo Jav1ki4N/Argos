@@ -1,10 +1,11 @@
-
+#pragma once
 /* includes */
 #include "../../thirdparty/ddc_u8g2.hpp"
 #include "driver/spi_master.h"
 #include "hal/gpio_types.h"
 #include "soc/gpio_num.h"
 #include "u8g2.h"
+#include "../display/UI/Hermes.hpp"
 
 class SSD1322 : public SPIDevice
 {
@@ -30,8 +31,17 @@ class SSD1322 : public SPIDevice
 
         /* Test Code */
         u8g2_ClearBuffer(&u8g2);
-        u8g2_SetFont(&u8g2, u8g2_font_profont17_tr);
-        u8g2_DrawStr(&u8g2, 0, 15, "Clairvoyance");
+
+        ui_drawOutline(&u8g2);
+        ui_drawNavBar(&u8g2);
+        
+        ui_color(&u8g2, 0);
+        ui_drawProjTitle(&u8g2);
+        ui_drawTag(&u8g2, "INFO");
+        ui_drawTag(&u8g2, "NETWORK");
+        ui_drawTag(&u8g2, "ABOUT");
+        ui_color(&u8g2,1);
+
         u8g2_SendBuffer(&u8g2); 
     }
 

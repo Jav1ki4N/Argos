@@ -1,4 +1,4 @@
-
+#pragma once
 /* Includes --------------------------------------------------------------- */
 #include "ddc_io.hpp"
 #include "ddc_spi.hpp"
