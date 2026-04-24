@@ -1,4 +1,4 @@
-
+#pragma once
 /* Includes */
 #include "soc/gpio_num.h"
 #include <cassert>
@@ -38,6 +38,16 @@ class Pin
     {
         return gpio_set_level(pin_num, !gpio_get_level(pin_num));
     }
+
+    gpio_num_t get_pin_num() const
+    {
+        return pin_num;
+    }
+
+     /* Destructor  */
+     // Notice: If a destructor function is provided
+     // the object will be destroyed when it goes out of scope
+     // unless an infinite loop is used to prevent it from going out of scope
 
     protected:
     private:

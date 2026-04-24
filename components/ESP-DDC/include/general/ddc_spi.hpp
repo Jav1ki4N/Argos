@@ -1,5 +1,6 @@
 
 /* Includes */
+#include "driver/spi_common.h"
 #include "hal/spi_types.h"
 #include <driver/spi_master.h>
 #include <esp_err.h>
@@ -13,13 +14,14 @@ class SPI
     public:
     /* Constructor */
     SPI(spi_host_device_t host, spi_bus_config_t *config = nullptr)
-    : _host(host)
+    : _host(host), _config(config ? *config : default_bus_config)
     {
-        if(config == nullptr)
-        {
-            config = const_cast<spi_bus_config_t*>(&default_bus_config);
-        }
-        spi_bus_initialize(host, config, SPI_DMA_CH_AUTO);
+        esp_err_t ret = spi_bus_initialize(_host, &_config, SPI_DMA_CH_AUTO);
+        assert(ret == ESP_OK);
+    }
+    ~SPI()
+    {
+        spi_bus_free(_host);
     }
 
     esp_err_t add_device(spi_device_interface_config_t *dev_config, spi_device_handle_t *handle)
@@ -32,14 +34,21 @@ class SPI
         return spi_bus_remove_device(handle);
     }
 
+    spi_bus_config_t get_config() const
+    {
+        return _config;
+    }
+
     /* Destructor  */
     // Notice: If a destructor function is provided
     // the object will be destroyed when it goes out of scope
     // unless an infinite loop is used to prevent it from going out of scope
     protected:
     private:
-    [[maybe_unused]]spi_host_device_t _host;
+    spi_host_device_t _host;
 
+    spi_bus_config_t _config;
+   
     static inline const spi_bus_config_t default_bus_config = []
     {
         spi_bus_config_t config = {};

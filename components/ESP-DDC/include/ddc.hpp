@@ -17,4 +17,8 @@
 #include "general/ddc_io.hpp"
 
 /* SPI */
-#include "general/ddc_spi_device.hpp"
+
+/* Devices */
+#include "devices/display/ssd1322.hpp"
+
+

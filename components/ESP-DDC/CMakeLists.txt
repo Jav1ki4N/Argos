@@ -8,5 +8,5 @@
 
 idf_component_register(SRCS
                        INCLUDE_DIRS "include"
-                       REQUIRES driver
+                       REQUIRES driver u8g2
                        )

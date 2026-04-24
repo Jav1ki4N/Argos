@@ -9,6 +9,34 @@
 
 ESP-DDC is my C++ library for ESP32 development. It's currently work in progress.
 
+## How it works
+
+ESP-DDC is provided as ESP-IDF components and works exactly like many of them, is currently designed to be header-only.
+
+```bash
+.
+├── CMakeLists.txt
+└── include
+    ├── ddc.hpp
+    ├── devices
+    │   ├── display
+    │   │   └── ssd1322.hpp
+    │   ├── gyro
+    │   └── sensor
+    ├── general
+    │   ├── ddc_io.hpp
+    │   ├── ddc_spi_device.hpp
+    │   └── ddc_spi.hpp
+    └── thirdparty
+        └── ddc_u8g2.hpp
+
+8 directories, 7 files
+```
+To use, simply:
+```cpp
+#include "ddc.hpp"
+```
+
 ## Clangd
 
 I have no idea why but clangd works poorly with ESP-IDF extension for VSCode.

@@ -41,6 +41,9 @@ managed_components/
 # If ESP-IDF tools are installed/referenced locally to the project
 .espressif/
 
+# Do not upload local U8g2 component copy
+/components/u8g2/
+
 # CMake generated files
 CMakeCache.txt
 CMakeFiles/
