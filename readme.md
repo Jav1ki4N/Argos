@@ -11,7 +11,7 @@ ESP-DDC is my C++ library for ESP32 development. It's currently work in progress
 
 ## How it works
 
-ESP-DDC is provided as ESP-IDF components and works exactly like many of them, is currently designed to be header-only.
+ESP-DDC is provided as ESP-IDF components and works exactly like many of them. It's currently designed to be header-only.
 
 ```bash
 .
