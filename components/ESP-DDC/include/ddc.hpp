@@ -20,6 +20,8 @@
 #include "general/ddc_spi_device.hpp"
 
 /* Devices */
-#include "devices/display/ssd1322.hpp"
+#include "devices/display/ssd1322_u8g2.hpp"
 
+/* Network */
+#include "network/ddc_wifi.hpp"
 

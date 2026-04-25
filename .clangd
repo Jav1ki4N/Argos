@@ -19,6 +19,13 @@ CompileFlags:
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/hal/include
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/hal/esp32s3/include
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_rom/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_wifi/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_netif/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_event/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/nvs_flash/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_partition/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/freertos/esp_additions/include
+
 
 InlayHints:
   Enabled: true

@@ -1,11 +1,12 @@
 #pragma once
 /* includes */
 #include "../../thirdparty/ddc_u8g2.hpp"
+#include "UI/Hermes_icon.hpp"
 #include "driver/spi_master.h"
 #include "hal/gpio_types.h"
 #include "soc/gpio_num.h"
 #include "u8g2.h"
-#include "../display/UI/Hermes.hpp"
+#include "../display/UI/Hermes_u8g2.hpp"
 
 class SSD1322 : public SPIDevice
 {
@@ -31,6 +32,7 @@ class SSD1322 : public SPIDevice
 
         /* Test Code */
         u8g2_ClearBuffer(&u8g2);
+        u8g2_SendBuffer(&u8g2);
 
         ui_drawOutline(&u8g2);
         ui_drawNavBar(&u8g2);
@@ -39,10 +41,17 @@ class SSD1322 : public SPIDevice
         ui_drawProjTitle(&u8g2);
         ui_drawTag(&u8g2, "INFO");
         ui_drawTag(&u8g2, "NETWORK");
-        ui_drawTag(&u8g2, "ABOUT");
-        ui_color(&u8g2,1);
-
-        u8g2_SendBuffer(&u8g2); 
+        ui_drawTag(&u8g2, "ABOUT");        
+        ui_SelectTag(&u8g2, "NETWORK");
+        
+        for (WifiIcon icon : {WifiIcon::no_connect, WifiIcon::wifi_1, WifiIcon::wifi_2, WifiIcon::wifi_3})
+        {
+            ui_drawIcon_Wifi(&u8g2, icon);
+            vTaskDelay(750 / portTICK_PERIOD_MS);
+            u8g2_SendBuffer(&u8g2);
+        }
+        ui_SelectTag(&u8g2, "ABOUT");
+        u8g2_SendBuffer(&u8g2);
     }
 
     protected:
