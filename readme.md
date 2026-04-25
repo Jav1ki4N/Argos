@@ -20,17 +20,22 @@ ESP-DDC is provided as ESP-IDF components and works exactly like many of them. I
     ├── ddc.hpp
     ├── devices
     │   ├── display
-    │   │   └── ssd1322.hpp
+    │   │   ├── ssd1322_u8g2.hpp
+    │   │   └── UI
+    │   │       ├── Hermes_icon.hpp
+    │   │       └── Hermes_u8g2.hpp
     │   ├── gyro
     │   └── sensor
     ├── general
     │   ├── ddc_io.hpp
     │   ├── ddc_spi_device.hpp
     │   └── ddc_spi.hpp
+    ├── network
+    │   └── ddc_wifi.hpp
     └── thirdparty
         └── ddc_u8g2.hpp
 
-8 directories, 7 files
+10 directories, 10 files
 ```
 To use, simply:
 ```cpp
