@@ -1,22 +1,32 @@
 #include "freertos/idf_additions.h"
+#include "hal/spi_types.h"
 #include "soc/gpio_num.h"
 #include <cstdio>
-#include "ui_framework.hpp"
 #include "network.hpp"
+#include "main.hpp"
 
 /* Components */
 #include "ddc.hpp"
 
+SSD1322 *Argos_framework = nullptr;
 
 TaskHandle_t ui_task_handle;
 TaskHandle_t network_task_handle;
 
+
 extern "C" void app_main(void)
 {
-    // Pin led(GPIO_NUM_7, GPIO_MODE_OUTPUT);
-    // led.set2(high);
-    xTaskCreate(framework_task, "UI Framework Task", 4096, nullptr, 5, &ui_task_handle);
+    // Create Tasks
     xTaskCreate(network_task, "Network Task", 4096, nullptr, 5, &network_task_handle);
     
+    // UI Framework Init
+    // Init is done in at construction
+    SPI spi_bus(SPI2_HOST);
+    SSD1322 framework(spi_bus, GPIO_NUM_4, GPIO_NUM_2, GPIO_NUM_5);
+    
+    // Global pointer, declared in header
+    Argos_framework = &framework;
+
+    // Empty loop
     for(;;) vTaskDelay(portMAX_DELAY);
 }

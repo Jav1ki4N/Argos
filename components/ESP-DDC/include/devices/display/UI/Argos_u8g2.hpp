@@ -1,11 +1,13 @@
-/* Hermes UI */
+/* Argos UI */
 #pragma once
 
 #include <cstdio>
 #include <string>
 #include <vector>
+#include "freertos/projdefs.h"
+#include "freertos/FreeRTOS.h"
 #include "u8g2.h"
-#include "Hermes_icon.hpp"
+#include "Argos_icon.hpp"
 
 inline struct Frame
 {
@@ -27,7 +29,7 @@ inline struct Nav
     struct ProjTitle
     {
         uint8_t gap_from_nav = 2;
-        const std::string text = "Hermes V1.0";
+        const std::string text = "Argos V1.0";
     }projTitle;
 
     uint8_t projTitle_x() const {return x + projTitle.gap_from_nav;}
@@ -109,9 +111,16 @@ inline void ui_drawNavBar(u8g2_t *u8g2)
     u8g2_DrawBox(u8g2, nav.x, nav.y, nav.width, nav.height);
 }
 
-inline void ui_color(u8g2_t *u8g2, uint8_t mode)
+enum class PencilMode : uint8_t
 {
-    u8g2_SetDrawColor(u8g2, mode);
+    erase = 0,
+    draw = 1,
+    invert = 2
+};
+
+inline void ui_PencilMode(u8g2_t *u8g2, PencilMode mode)
+{
+    u8g2_SetDrawColor(u8g2, static_cast<uint8_t>(mode));
 }
 
 inline void ui_drawProjTitle(u8g2_t *u8g2)
@@ -143,9 +152,9 @@ inline void ui_deselectTag(u8g2_t *u8g2, const std::string& tag_text)
     uint8_t y = nav.get_tagY() - 8;
     uint8_t w = nav.get_tagLength(u8g2, tag_text) + 2*side_gap;
     uint8_t h = 9;
-    ui_color(u8g2, 2);
+    ui_PencilMode(u8g2, PencilMode::invert);
     u8g2_DrawRBox(u8g2, x, y, w, h, radius);
-    ui_color(u8g2, 1);
+    ui_PencilMode(u8g2, PencilMode::draw);
 }
 
 inline void ui_SelectTag(u8g2_t *u8g2, const std::string& tag_text)
@@ -159,9 +168,9 @@ inline void ui_SelectTag(u8g2_t *u8g2, const std::string& tag_text)
     uint8_t y = nav.get_tagY() - 8;
     uint8_t w = nav.get_tagLength(u8g2, tag_text) + 2*side_gap;
     uint8_t h = 9;
-    ui_color(u8g2, 2);
+    ui_PencilMode(u8g2, PencilMode::invert);
     u8g2_DrawRBox(u8g2, x, y, w, h, radius);
-    ui_color(u8g2, 1);
+    ui_PencilMode(u8g2, PencilMode::draw);
 }
 
 inline void ui_fillPage(u8g2_t *u8g2)
@@ -175,13 +184,35 @@ inline void ui_fillPage(u8g2_t *u8g2)
 
 inline void ui_drawIcon_Wifi(u8g2_t *u8g2,WifiIcon wifi_icon)
 {
-    ui_color(u8g2,1);
+    ui_PencilMode(u8g2, PencilMode::draw);
     u8g2_DrawXBMP(u8g2, page.get_wifiX(), 
                         page.get_wifiY(), 
                         page.network.wifi_length, 
                         page.network.wifi_height, wifi_icons[static_cast<uint8_t>(wifi_icon)]);
-    ui_color(u8g2,0);
+    ui_PencilMode(u8g2, PencilMode::erase);
 }
+
+inline void ui_drawLogo(u8g2_t *u8g2)
+{
+    
+    
+}
+
+inline void ui_PlayBootingScreen(u8g2_t *u8g2)
+{
+    ui_PencilMode(u8g2, PencilMode::draw);
+    u8g2_DrawXBMP(u8g2, page.get_PageWidth()/2 - 32, 
+                        15, 
+                        64, 
+                        32, logo);
+    u8g2_DrawStr(u8g2,128+32, 15+24, "ARGOS"); 
+    ui_PencilMode(u8g2, PencilMode::erase);
+    u8g2_SendBuffer(u8g2);
+    vTaskDelay(pdMS_TO_TICKS(3000));
+    u8g2_DrawBox(u8g2,page.get_PageWidth()/2 - 32, 15, 128, 46);
+    u8g2_SendBuffer(u8g2);
+}
+
 
 
 

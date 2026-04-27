@@ -1,12 +1,12 @@
 #pragma once
 /* includes */
 #include "../../thirdparty/ddc_u8g2.hpp"
-#include "UI/Hermes_icon.hpp"
 #include "driver/spi_master.h"
 #include "hal/gpio_types.h"
 #include "soc/gpio_num.h"
 #include "u8g2.h"
-#include "../display/UI/Hermes_u8g2.hpp"
+#include "../display/UI/Argos_u8g2.hpp"
+#include <stdint.h>
 
 class SSD1322 : public SPIDevice
 {
@@ -21,7 +21,7 @@ class SSD1322 : public SPIDevice
       rst_pin  (rst, GPIO_MODE_OUTPUT),           // reset
       hal      (cs_pin, dc_pin, rst_pin, _handle) // u8g2 HAL 
     {
-        /* Init */
+        /* GUI Lib Init */
         u8g2_Setup_ssd1322_nhd_256x64_f(&u8g2, 
                                         U8G2_R0,
                                         spi_byte_cb_static, 
@@ -30,28 +30,44 @@ class SSD1322 : public SPIDevice
         u8g2_InitDisplay(&u8g2);
         u8g2_SetPowerSave(&u8g2, 0);
 
-        /* Test Code */
-        u8g2_ClearBuffer(&u8g2);
-        u8g2_SendBuffer(&u8g2);
-
-        ui_drawOutline(&u8g2);
-        ui_drawNavBar(&u8g2);
+        /* Framework Init */
+        ui_Init();
         
-        ui_color(&u8g2, 0);
+    }
+
+    /* UI */
+    /* All funcs passes no u8g2_t struct */
+    /* And are ready-to-call */
+    /* For low-level operations check Argos_u8g2.hpp */
+
+    enum class Page : uint8_t
+    {
+        info = 0,
+        network = 1,
+        about = 2
+    };
+
+    void ui_Init()
+    {
+        // Shapes
+        u8g2_ClearBuffer(&u8g2);
+        u8g2_SendBuffer (&u8g2);
+        ui_drawOutline  (&u8g2);
+        ui_drawNavBar   (&u8g2);
+
+        // Nav Tags
+        ui_PencilMode(&u8g2,PencilMode::erase);
         ui_drawProjTitle(&u8g2);
         ui_drawTag(&u8g2, "INFO");
         ui_drawTag(&u8g2, "NETWORK");
-        ui_drawTag(&u8g2, "ABOUT");        
-        ui_SelectTag(&u8g2, "NETWORK");
-        
-        for (WifiIcon icon : {WifiIcon::no_connect, WifiIcon::wifi_1, WifiIcon::wifi_2, WifiIcon::wifi_3})
-        {
-            ui_drawIcon_Wifi(&u8g2, icon);
-            vTaskDelay(750 / portTICK_PERIOD_MS);
-            u8g2_SendBuffer(&u8g2);
-        }
-        ui_SelectTag(&u8g2, "ABOUT");
+        ui_drawTag(&u8g2, "ABOUT");
+
+        // Booting Screen Animation
+        ui_PlayBootingScreen(&u8g2);
+
+        // Fresh
         u8g2_SendBuffer(&u8g2);
+        ui_PencilMode(&u8g2, PencilMode::draw);
     }
 
     protected:
