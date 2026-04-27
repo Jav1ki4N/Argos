@@ -22,8 +22,8 @@ ESP-DDC is provided as ESP-IDF components and works exactly like many of them. I
     │   ├── display
     │   │   ├── ssd1322_u8g2.hpp
     │   │   └── UI
-    │   │       ├── Hermes_icon.hpp
-    │   │       └── Hermes_u8g2.hpp
+    │   │       ├── Argos_icon.hpp
+    │   │       └── Argos_u8g2.hpp
     │   ├── gyro
     │   └── sensor
     ├── general
@@ -40,6 +40,59 @@ ESP-DDC is provided as ESP-IDF components and works exactly like many of them. I
 To use, simply:
 ```cpp
 #include "ddc.hpp"
+```
+
+## Application
+Below is a example project structure using ESP-DDC.
+
+```bash
+.
+├── CMakeLists.txt
+├── main.cpp
+├── main.hpp
+├── network.cpp
+└── network.hpp
+
+1 directory, 5 files
+```
+`main.cpp` is where tasks and global pointers of objects are created. A header file `main.hpp` can be included by indivial task `.cpp` file to allow using object functions across tasks.
+
+```cpp
+/* Components */
+#include "ddc.hpp"
+
+SSD1322 *Argos_framework = nullptr;
+
+TaskHandle_t ui_task_handle;
+TaskHandle_t network_task_handle;
+
+
+extern "C" void app_main(void)
+{
+    // Create Tasks
+    xTaskCreate(network_task, "Network Task", 4096, nullptr, 5, &network_task_handle);
+    
+    // UI Framework Init
+    // Init is done in at construction
+    SPI spi_bus(SPI2_HOST);
+    SSD1322 framework(spi_bus, GPIO_NUM_4, GPIO_NUM_2, GPIO_NUM_5);
+    
+    // Global pointer, declared in header
+    Argos_framework = &framework;
+
+    // Empty loop
+    for(;;) vTaskDelay(portMAX_DELAY);
+}
+```
+
+Objects are normally created separately in each's own task `.cpp` files, e.g. :
+
+```cpp
+void network_task(void *arg)
+{
+    WIFI Argos_network;
+    for(;;){}
+}
 ```
 
 ## Clangd

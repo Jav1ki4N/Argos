@@ -82,8 +82,9 @@ class SSD1322 : public SPIDevice
     };
     Pin dc_pin,
         rst_pin;
+
     u8g2_hal hal;
-    u8g2_t u8g2;
+    u8g2_t   u8g2;
 
     /* static callback for u8g2 */
     static uint8_t spi_byte_cb_static(u8x8_t* u8x8,
