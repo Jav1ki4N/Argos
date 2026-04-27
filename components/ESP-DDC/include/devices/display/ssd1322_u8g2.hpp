@@ -1,10 +1,10 @@
 #pragma once
 /* includes */
-#include "../../thirdparty/ddc_u8g2.hpp"
 #include "driver/spi_master.h"
 #include "hal/gpio_types.h"
 #include "soc/gpio_num.h"
 #include "u8g2.h"
+#include "thirdparty/ddc_u8g2.hpp"
 #include "../display/UI/Argos_u8g2.hpp"
 #include <stdint.h>
 
@@ -30,44 +30,19 @@ class SSD1322 : public SPIDevice
         u8g2_InitDisplay(&u8g2);
         u8g2_SetPowerSave(&u8g2, 0);
 
-        /* Framework Init */
-        ui_Init();
-        
-    }
-
-    /* UI */
-    /* All funcs passes no u8g2_t struct */
-    /* And are ready-to-call */
-    /* For low-level operations check Argos_u8g2.hpp */
-
-    enum class Page : uint8_t
-    {
-        info = 0,
-        network = 1,
-        about = 2
-    };
-
-    void ui_Init()
-    {
-        // Shapes
         u8g2_ClearBuffer(&u8g2);
         u8g2_SendBuffer (&u8g2);
-        ui_drawOutline  (&u8g2);
-        ui_drawNavBar   (&u8g2);
 
-        // Nav Tags
-        ui_PencilMode(&u8g2,PencilMode::erase);
-        ui_drawProjTitle(&u8g2);
-        ui_drawTag(&u8g2, "INFO");
-        ui_drawTag(&u8g2, "NETWORK");
-        ui_drawTag(&u8g2, "ABOUT");
+    }
 
-        // Booting Screen Animation
-        ui_PlayBootingScreen(&u8g2);
+    u8g2_t* get_U8g2()
+    {
+        return &u8g2;
+    }
 
-        // Fresh
-        u8g2_SendBuffer(&u8g2);
-        ui_PencilMode(&u8g2, PencilMode::draw);
+    App_State& get_UIAppState()
+    {
+        return app_state;
     }
 
     protected:
@@ -83,8 +58,9 @@ class SSD1322 : public SPIDevice
     Pin dc_pin,
         rst_pin;
 
-    u8g2_hal hal;
-    u8g2_t   u8g2;
+    u8g2_hal  hal;
+    u8g2_t    u8g2;
+    App_State app_state;
 
     /* static callback for u8g2 */
     static uint8_t spi_byte_cb_static(u8x8_t* u8x8,

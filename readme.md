@@ -23,7 +23,8 @@ ESP-DDC is provided as ESP-IDF components and works exactly like many of them. I
     │   │   ├── ssd1322_u8g2.hpp
     │   │   └── UI
     │   │       ├── Argos_icon.hpp
-    │   │       └── Argos_u8g2.hpp
+    │   │       ├── Argos_u8g2.hpp
+    │   │       └── readme.md
     │   ├── gyro
     │   └── sensor
     ├── general
@@ -35,7 +36,7 @@ ESP-DDC is provided as ESP-IDF components and works exactly like many of them. I
     └── thirdparty
         └── ddc_u8g2.hpp
 
-10 directories, 10 files
+10 directories, 11 files
 ```
 To use, simply:
 ```cpp
@@ -55,7 +56,7 @@ Below is an example project structure using ESP-DDC.
 
 1 directory, 5 files
 ```
-`main.cpp` is where tasks and global pointers of objects are created. A header file `main.hpp` can be included by indivial task `.cpp` file to allow using object functions across tasks.
+`main.cpp` is where tasks and global pointers of objects are created. 
 
 ```cpp
 /* Components */
@@ -63,9 +64,7 @@ Below is an example project structure using ESP-DDC.
 
 SSD1322 *Argos_framework = nullptr;
 
-TaskHandle_t ui_task_handle;
 TaskHandle_t network_task_handle;
-
 
 extern "C" void app_main(void)
 {
@@ -77,9 +76,6 @@ extern "C" void app_main(void)
     SPI spi_bus(SPI2_HOST);
     SSD1322 framework(spi_bus, GPIO_NUM_4, GPIO_NUM_2, GPIO_NUM_5);
     
-    // Global pointer, declared in header
-    Argos_framework = &framework;
-
     // Empty loop
     for(;;) vTaskDelay(portMAX_DELAY);
 }

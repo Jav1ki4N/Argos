@@ -1,3 +1,4 @@
+#include "devices/display/UI/Argos_u8g2.hpp"
 #include "freertos/idf_additions.h"
 #include "hal/spi_types.h"
 #include "soc/gpio_num.h"
@@ -28,5 +29,8 @@ extern "C" void app_main(void)
     Argos_framework = &framework;
 
     // Empty loop
-    for(;;) vTaskDelay(portMAX_DELAY);
+    for(;;)
+    {
+        Argos_UI_Render(framework.get_U8g2(),framework.get_UIAppState());
+    }
 }
