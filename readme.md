@@ -43,7 +43,7 @@ To use, simply:
 ```
 
 ## Application
-Below is a example project structure using ESP-DDC.
+Below is an example project structure using ESP-DDC.
 
 ```bash
 .
