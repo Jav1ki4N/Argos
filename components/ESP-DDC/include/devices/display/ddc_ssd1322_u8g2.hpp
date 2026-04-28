@@ -5,7 +5,7 @@
 #include "soc/gpio_num.h"
 #include "u8g2.h"
 #include "thirdparty/ddc_u8g2.hpp"
-#include "../display/UI/Argos_u8g2.hpp"
+#include "UI/ddc_argos_u8g2.hpp"
 #include <stdint.h>
 
 class SSD1322 : public SPIDevice

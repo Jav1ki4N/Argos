@@ -24,7 +24,7 @@ class Pin
     public:
     /* Constructor */
     Pin(gpio_num_t pin_num, gpio_mode_t mode)
-    : pin_num(pin_num)
+    : _pin_num(pin_num)
     {
         esp_err_t ret = gpio_reset_pin(pin_num);
         assert(ret == ESP_OK);
@@ -33,28 +33,28 @@ class Pin
     }
     ~Pin()
     {
-        gpio_reset_pin(pin_num);
+        gpio_reset_pin(_pin_num);
     }
 
-    enum class state : uint8_t
+    enum class State : uint8_t
     {
-        low = 0,
-        high = 1
+        Low  = 0,
+        High = 1
     };
 
-    esp_err_t set2(state s)
+    esp_err_t set2(State s)
     {
-        return gpio_set_level(pin_num, static_cast<uint8_t>(s));
+        return gpio_set_level(_pin_num, static_cast<uint8_t>(s));
     }
 
     esp_err_t toggle()
     {
-        return gpio_set_level(pin_num, !gpio_get_level(pin_num));
+        return gpio_set_level(_pin_num, !gpio_get_level(_pin_num));
     }
 
     gpio_num_t get_pin_num() const
     {
-        return pin_num;
+        return _pin_num;
     }
 
      /* Destructor  */
@@ -64,6 +64,6 @@ class Pin
 
     protected:
     private:
-    gpio_num_t pin_num;
+    gpio_num_t _pin_num;
 
 };

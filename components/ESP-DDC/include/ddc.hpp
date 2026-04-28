@@ -20,7 +20,10 @@
 #include "general/ddc_spi_device.hpp"
 
 /* Devices */
-#include "devices/display/ssd1322_u8g2.hpp"
+#include "devices/display/ddc_ssd1322_u8g2.hpp"
+
+/* UI */
+#include "devices/display/UI/ddc_argos_u8g2.hpp"
 
 /* Network */
 #include "network/ddc_wifi.hpp"

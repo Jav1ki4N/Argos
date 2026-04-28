@@ -23,8 +23,22 @@
 
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
+#include "freertos/queue.h"
 
 #include <string>
+
+/* Message passed from WIFI event handler to UI task via Queue */
+struct WifiMsg
+{
+    enum State : uint8_t
+    {
+        Connecting = 0,
+        Connected  = 1,
+        Failed     = 2
+    };
+    State state;
+    char ssid[32];
+};
 
 
 
@@ -34,27 +48,24 @@ class WIFI
 
     enum class Mode : uint8_t
     {
-        station,        // Connect to an existing Wi-Fi network
-        softAP,         // Create a Wi-Fi network for other devices to connect to
-        station_softAP, // Both station and softAP modes at the same time
-        sniffer         // Monitor mode for sniffing Wi-Fi packets
+        Station,        // Connect to an existing Wi-Fi network
+        SoftAP,         // Create a Wi-Fi network for other devices to connect to
+        StationSoftAP,  // Both station and softAP modes at the same time
+        Sniffer         // Monitor mode for sniffing Wi-Fi packets
     };
 
-    WIFI() = default;
-
-    void init(Mode mode, const std::string& ssid, const std::string& password, wifi_auth_mode_t auth_mode = WIFI_AUTH_WPA2_PSK)
+    WIFI(Mode mode, 
+         const std::string& ssid,                         // Route WIFI identfier, ESP32 will looking for this SSID to connect to
+         const std::string& password,                     // Just password
+         wifi_auth_mode_t auth_mode = WIFI_AUTH_WPA2_PSK) // Authentication mode, default is WPA2-PSK, can be set to WPA3 if supported by the AP
     {
-        /* only for test */
-        if (mode != Mode::station) {
-            ESP_LOGE("WIFI", "Only station mode is implemented");
-            return;
-        }
+        
+        // Update Wi-Fi credentials (passed parameters -> private members)
+        wifi_ssid     = ssid;
+        wifi_password = password;
 
-        WIFI_SSID = ssid;
-        WIFI_PASSWORD = password;
-
-        /****************/
-        //Initialize NVS
+        // Initialize NVS (Non-Volatile Storage), 
+        // Required
         esp_err_t ret = nvs_flash_init();
         if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
             ESP_ERROR_CHECK(nvs_flash_erase());
@@ -62,25 +73,53 @@ class WIFI
         }
         ESP_ERROR_CHECK(ret);
 
+        // Specific WIFI mode initialization
+        // 2026-4-28: ONLY STA MODE IS IMPLEMENTED
         ESP_LOGI("WIFI", "ESP_WIFI_MODE_STA");
         init_core(mode, auth_mode);
     }
 
-    private:
-    
-    std::string WIFI_SSID     = "Hermes";
-    std::string WIFI_PASSWORD = "Clairvoyance";
-
     /* FreeRTOS Event Group  */
     enum class WifiEventBits : uint8_t
     {
-        connected = 1 << 0, // Bit 0: Connected to Wi-Fi
-        failed    = 1 << 1  // Bit 1: Failed to connect to Wi-Fi
+        connected  = 1 << 0,   // Bit 0: Connected to Wi-Fi
+        failed     = 1 << 1,   // Bit 1: Failed to connect to Wi-Fi
+        connecting = 1 << 2    // Bit 2: Currently trying to connect to Wi-Fi
     };
-    static inline EventGroupHandle_t wifi_event_group;
 
-    uint8_t wifi_retry_count = 0;
-    static constexpr uint8_t MAX_WIFI_RETRY = 5;
+    static EventGroupHandle_t get_event_group()
+    {
+        return wifi_event_group;
+    }
+
+    const char* get_ssid() const
+    {
+        return wifi_ssid.c_str();
+    }
+
+    /* Queue-based IPC: event handler pushes WifiMsg here for UI task consumption */
+    static void set_ui_queue(QueueHandle_t q)
+    {
+        ui_queue = q;
+    }
+
+    static QueueHandle_t get_ui_queue()
+    {
+        return ui_queue;
+    }
+
+    private:
+    
+    std::string wifi_ssid     = "Hermes";
+    std::string wifi_password = "Clairvoyance";
+
+    static inline EventGroupHandle_t wifi_event_group;
+    static inline QueueHandle_t      ui_queue = nullptr;
+
+    /* WIFI Reconnect Settings */
+    uint8_t          wifi_retry_count = 0;        // connect retry counter
+    static constexpr uint8_t MAX_WIFI_RETRY = 5;  // max allowed retry times
+                                                  // once reached, connection is considered failed
 
     /* =================================== WIFI EVENT HANDLERS ======================================== */
 
@@ -103,23 +142,50 @@ class WIFI
         // if Event is Wi-Fi event and event ID is "start", then connect to Wi-Fi
         if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
         {
+            xEventGroupClearBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connected) | static_cast<uint8_t>(WifiEventBits::failed));
+            xEventGroupSetBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connecting));
             esp_wifi_connect();
+
+            if (ui_queue) {
+                WifiMsg msg{};
+                msg.state = WifiMsg::Connecting;
+                strlcpy(msg.ssid, wifi_ssid.c_str(), sizeof(msg.ssid));
+                xQueueSend(ui_queue, &msg, 0);
+            }
         }
         // WIFI RECONNECT ===========================================================
         // if WIFI event's ID is "disconnected", retry to connect
         else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
         {
-            if (wifi_retry_count < MAX_WIFI_RETRY) // before max allowed retry count 
+            if (wifi_retry_count < MAX_WIFI_RETRY) // before max allowed retry count
             {
+                xEventGroupClearBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connected) | static_cast<uint8_t>(WifiEventBits::failed));
+                xEventGroupSetBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connecting));
+
                 esp_wifi_connect(); // retry to connect
                 wifi_retry_count++; // update retry count
                 ESP_LOGI("WIFI", "Retrying to connect to the AP");
+
+                if (ui_queue) {
+                    WifiMsg msg{};
+                    msg.state = WifiMsg::Connecting;
+                    strlcpy(msg.ssid, wifi_ssid.c_str(), sizeof(msg.ssid));
+                    xQueueSend(ui_queue, &msg, 0);
+                }
             }
             // WIFI FAILED =======================================================================
             else // reach max retry count
             {
-                xEventGroupSetBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::failed)); 
+                xEventGroupSetBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::failed));
+                xEventGroupClearBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connecting));
                 ESP_LOGE("WIFI", "Failed to connect to the AP");
+
+                if (ui_queue) {
+                    WifiMsg msg{};
+                    msg.state = WifiMsg::Failed;
+                    strlcpy(msg.ssid, wifi_ssid.c_str(), sizeof(msg.ssid));
+                    xQueueSend(ui_queue, &msg, 0);
+                }
             }
         }
         // WIFI GOT IP ====================================================
@@ -129,6 +195,14 @@ class WIFI
             ESP_LOGI("WIFI", "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
             wifi_retry_count = 0;
             xEventGroupSetBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connected));
+            xEventGroupClearBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connecting));
+
+            if (ui_queue) {
+                WifiMsg msg{};
+                msg.state = WifiMsg::Connected;
+                strlcpy(msg.ssid, wifi_ssid.c_str(), sizeof(msg.ssid));
+                xQueueSend(ui_queue, &msg, 0);
+            }
         }
     }
 
@@ -144,7 +218,7 @@ class WIFI
         ESP_ERROR_CHECK(esp_event_loop_create_default());
 
         // Create default Wi-Fi interface, depending on the mode
-        if(mode == Mode::station)esp_netif_create_default_wifi_sta();
+        if(mode == Mode::Station)esp_netif_create_default_wifi_sta();
 
         // Init Wi-Fi with default config pre-written by ESP-IDF
         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -172,10 +246,10 @@ class WIFI
         // Notice that this config is not 'wifi_init_config_t' but 'wifi_config_t'
 
         wifi_config_t wifi_config = {};
-        if (mode == Mode::station)
+        if (mode == Mode::Station)
         {
-            strlcpy((char*)wifi_config.sta.ssid, WIFI_SSID.c_str(), sizeof(wifi_config.sta.ssid));
-            strlcpy((char*)wifi_config.sta.password, WIFI_PASSWORD.c_str(), sizeof(wifi_config.sta.password));
+            strlcpy((char*)wifi_config.sta.ssid, wifi_ssid.c_str(), sizeof(wifi_config.sta.ssid));
+            strlcpy((char*)wifi_config.sta.password, wifi_password.c_str(), sizeof(wifi_config.sta.password));
             wifi_config.sta.threshold.authmode = auth_mode; // Set minimum auth mode
             wifi_config.sta.sae_pwe_h2e = WPA3_SAE_PWE_BOTH; // Enable SAE H2E for WPA3 support
 
@@ -194,11 +268,11 @@ class WIFI
 
         if (bits & static_cast<uint8_t>(WifiEventBits::connected)) {
             ESP_LOGI("WIFI_STA", "connected to ap SSID:%s password:%s",
-                 WIFI_SSID.c_str(), WIFI_PASSWORD.c_str());
+                 wifi_ssid.c_str(), wifi_password.c_str());
             } 
         else if (bits & static_cast<uint8_t>(WifiEventBits::failed)) {
             ESP_LOGI("WIFI_STA", "Failed to connect to SSID:%s, password:%s",
-                 WIFI_SSID.c_str(), WIFI_PASSWORD.c_str());
+                 wifi_ssid.c_str(), wifi_password.c_str());
         } 
         else ESP_LOGE("WIFI_STA", "UNEXPECTED EVENT");
     }

@@ -27,7 +27,7 @@ class SPI
     public:
     /* Constructor */
     SPI(spi_host_device_t host, spi_bus_config_t *config = nullptr)
-    : _host(host), _config(config ? *config : default_bus_config)
+    : _host(host), _config(config ? *config : DEFAULT_BUS_CONFIG)
     {
         esp_err_t ret = spi_bus_initialize(_host, &_config, SPI_DMA_CH_AUTO);
         assert(ret == ESP_OK);
@@ -62,7 +62,7 @@ class SPI
 
     spi_bus_config_t _config;
    
-    static inline const spi_bus_config_t default_bus_config = []
+    static inline const spi_bus_config_t DEFAULT_BUS_CONFIG = []
     {
         spi_bus_config_t config = {};
         config.mosi_io_num     = 11;

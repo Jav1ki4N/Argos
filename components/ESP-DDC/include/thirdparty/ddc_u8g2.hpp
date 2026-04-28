@@ -22,7 +22,7 @@
 #include "../general/ddc_spi_device.hpp"
 #include "u8x8.h"
 
-using enum Pin::state;
+using enum Pin::State;
 
 /* class */
 /* This class should serve as a class member of a specific display class   */
@@ -57,7 +57,7 @@ class u8g2_hal
         switch(msg)
         {
             case U8X8_MSG_BYTE_SET_DC:
-                if(config.dc.get_pin_num() != GPIO_NUM_NC)config.dc.set2(arg_int?high:low);
+                if(config.dc.get_pin_num() != GPIO_NUM_NC)config.dc.set2(arg_int?High:Low);
                 break;
             case U8X8_MSG_BYTE_INIT:
                 // bus init already done in ddc_spi.hpp constructor, so do nothing here
@@ -95,10 +95,10 @@ class u8g2_hal
                 // done in advance 
                 break;
             case U8X8_MSG_GPIO_RESET:
-                if(config.rst.get_pin_num() != GPIO_NUM_NC)config.rst.set2(arg_int?high:low);
+                if(config.rst.get_pin_num() != GPIO_NUM_NC)config.rst.set2(arg_int?High:Low);
                 break;
             case U8X8_MSG_GPIO_CS:
-                if(config.cs.get_pin_num() != GPIO_NUM_NC)config.cs.set2(arg_int?high:low);
+                if(config.cs.get_pin_num() != GPIO_NUM_NC)config.cs.set2(arg_int?High:Low);
                 break;
             case U8X8_MSG_DELAY_MILLI:
                 if (arg_int >= portTICK_PERIOD_MS) {

@@ -44,6 +44,11 @@ managed_components/
 # Do not upload local U8g2 component copy
 /components/u8g2/
 
+# Do not upload local linux folder
+/linux/
+
+/private/
+
 # CMake generated files
 CMakeCache.txt
 CMakeFiles/

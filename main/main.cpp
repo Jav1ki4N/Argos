@@ -1,17 +1,17 @@
-#include "devices/display/UI/Argos_u8g2.hpp"
 #include "freertos/idf_additions.h"
 #include "hal/spi_types.h"
 #include "soc/gpio_num.h"
 #include <cstdio>
-#include "network.hpp"
-#include "main.hpp"
 
 /* Components */
 #include "ddc.hpp"
 
+/* Tasks */
+#include "main.hpp"
+#include "network.hpp"
+
 SSD1322 *Argos_framework = nullptr;
 
-TaskHandle_t ui_task_handle;
 TaskHandle_t network_task_handle;
 
 
@@ -31,6 +31,11 @@ extern "C" void app_main(void)
     // Empty loop
     for(;;)
     {
-        Argos_UI_Render(framework.get_U8g2(),framework.get_UIAppState());
+        /* Consume WIFI -> UI messages before rendering */
+        UI_UpdateState(framework.get_UIAppState());
+
+        /* Launch UI Render Service */
+        UI_Render(framework.get_U8g2(), framework.get_UIAppState());
+        vTaskDelay(5 / portTICK_PERIOD_MS);
     }
 }
