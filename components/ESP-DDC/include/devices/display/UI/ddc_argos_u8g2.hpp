@@ -9,18 +9,18 @@
 #include "ddc_argos_icon.hpp"
 #include "u8g2.h"
 #include <cstdint>
+#include <time.h>
 #include "ddc_animation.hpp"
 #include "../../../network/ddc_wifi.hpp"
 
-// Element position
-// All data is decreased by 1, cuz screen index starts from 0
+// Element placement
 static constexpr uint8_t SCREEN_WIDTH = 255, 
-                         SCREEN_HEIGHT = 63,
+                         SCREEN_HEIGHT = 64,
                          NAV_BAR_WIDTH = 255,
                          NAV_BAR_HEIGHT = 13,
                          TITLE_GAP_FROM_LEFT = 3,
                          TITLE_GAP_FROM_BUTTOM =2,
-                         FIRST_TAG_FROM_TITLE = 20,
+                         FIRST_TAG_FROM_TITLE = 13,
                          GAP_BETWEEN_TAGS = 12,
                          ICON_SIZE = 32,
                          WIFI_ICON_WIDTH = 40,
@@ -30,7 +30,12 @@ static constexpr uint8_t SCREEN_WIDTH = 255,
 static constexpr const uint8_t* ARGOS_FONT  = (uint8_t*)u8g2_font_profont11_tr;
 static constexpr const char*    ARGOS_TITLE = "Argos V1.0";
 static constexpr const char*    PAGES[3]    = {"INFO", "NETWORK", "ABOUT"};
-static constexpr const uint8_t* WIFI_CONNECTING_ICONS[3] = {wifi_1, wifi_2, wifi_3};
+static constexpr const uint8_t* BOOT_SCREEN_ICONS[5]     = {icon_argos,
+                                                            icon_argos_alter,
+                                                            icon_void,
+                                                            icon_argos_alter,
+                                                            icon_void};
+static constexpr const uint8_t* WIFI_CONNECTING_ICONS[3] = {icon_wifi_1, icon_wifi_2, icon_wifi_3};
 static constexpr       uint16_t WIFI_ANIMATION_INTERVAL = 400;
 
 
@@ -56,6 +61,7 @@ struct App_State
     int current_page_index = 1;
     WifiMsg::State wifi_state = WifiMsg::Connecting;
     char wifi_ssid[32] = {};
+    char time_str[16] = "00:00:00";
 };
 
 /**********************************************************************************************/
@@ -77,6 +83,27 @@ inline void UI_DrawStatic(u8g2_t *u8g2)
                        
     u8g2_SetFontMode(u8g2, 0);
     u8g2_SetDrawColor(u8g2, 1);
+}
+
+inline void UI_DrawBootScreen(u8g2_t *u8g2)
+{
+    UI_DrawStatic(u8g2);
+    static Animation<5> boot_anime;
+    boot_anime.set_durations({500,100,100,100,100});
+    for(;;)
+    {
+        boot_anime.update();
+        int frame = boot_anime.frame;
+        u8g2_DrawXBMP(u8g2, 
+                      (SCREEN_WIDTH - ICON_SIZE) >> 1, 
+                      (((SCREEN_HEIGHT-NAV_BAR_HEIGHT)- ICON_SIZE) >> 1) + NAV_BAR_HEIGHT, 
+                      ICON_SIZE, 
+                      ICON_SIZE, 
+                      BOOT_SCREEN_ICONS[frame]);
+        u8g2_SendBuffer(u8g2);
+        if(frame == 4)break;
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+    }
 }
 
 // Update tags on the navigation bar
@@ -107,7 +134,7 @@ inline void UI_DrawTag(u8g2_t *u8g2, const App_State& state)
         // draw separator
         u8g2_SetDrawColor(u8g2,0);
         uint8_t sep_x = current_x + width + ((GAP_BETWEEN_TAGS - sep_width) >> 1);
-        u8g2_DrawStr(u8g2, sep_x, y, "|");
+        if(i!=2)u8g2_DrawStr(u8g2, sep_x, y, "|");
         
         if(i == state.current_page_index)
         {
@@ -128,6 +155,10 @@ inline void UI_DrawTag(u8g2_t *u8g2, const App_State& state)
         }
         current_x += width + GAP_BETWEEN_TAGS;
     }
+
+    /* Display Time */
+    u8g2_SetDrawColor(u8g2, 0);
+    u8g2_DrawStr(u8g2, 204, y, state.time_str);
 }
 
 inline void UI_DrawWifiIcon(u8g2_t *u8g2, const uint8_t *icon)
@@ -142,12 +173,13 @@ inline void UI_DrawWifiIcon(u8g2_t *u8g2, const uint8_t *icon)
 
 inline void UI_DrawPageWifi(u8g2_t *u8g2, const App_State& state)
 {
+    u8g2_SetFont(u8g2, ARGOS_FONT);
     u8g2_SetDrawColor(u8g2, 1);
     static Animation<3> wifi_connecting_anime;
 
     if (state.wifi_state == WifiMsg::Failed)
     {
-        UI_DrawWifiIcon(u8g2, wifi_no_connect);
+        UI_DrawWifiIcon(u8g2, icon_wifi_no_connect);
     }
     else if (state.wifi_state == WifiMsg::Connecting)
     {
@@ -157,7 +189,10 @@ inline void UI_DrawPageWifi(u8g2_t *u8g2, const App_State& state)
     else // WifiMsg::Connected
     {
         if (!wifi_connecting_anime.static_update(1500))
-            UI_DrawWifiIcon(u8g2, wifi_connected);
+            UI_DrawWifiIcon(u8g2, icon_wifi_connected); // enter page
+        /* page content */
+        //u8g2_DrawStr(u8g2, 9, 24, state.wifi_ssid);
+        u8g2_DrawBox(u8g2, 9, 23, 32, 32);
     }
 }
 
@@ -167,10 +202,11 @@ inline void UI_DrawPage(u8g2_t *u8g2, const App_State& state)
     {
         UI_DrawPageWifi(u8g2, state);
     }
-}
+    else if(state.current_page_index == 2) // About page
+    {
 
-/* Below functions started with the prefix 'UI_'                 */
-/* This indicates that they are designed to be called by user  */
+    }
+}
 
 inline void UI_PageTurn(u8g2_t *u8g2, Direction dir, App_State& state)
 {
@@ -198,6 +234,15 @@ inline void UI_UpdateState(App_State& state)
     {
         state.wifi_state = msg.state;
         strlcpy(state.wifi_ssid, msg.ssid, sizeof(state.wifi_ssid));
+    }
+
+    time_t now;
+    struct tm timeinfo;
+    time(&now);
+    localtime_r(&now, &timeinfo);
+    
+    if (timeinfo.tm_year > (2016 - 1900)) {
+        strftime(state.time_str, sizeof(state.time_str), "%H:%M:%S", &timeinfo);
     }
 }
 

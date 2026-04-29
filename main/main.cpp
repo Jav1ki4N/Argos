@@ -14,7 +14,6 @@ SSD1322 *Argos_framework = nullptr;
 
 TaskHandle_t network_task_handle;
 
-
 extern "C" void app_main(void)
 {
     // Create Tasks
@@ -27,6 +26,11 @@ extern "C" void app_main(void)
     
     // Global pointer, declared in header
     Argos_framework = &framework;
+
+    UI_DrawBootScreen(framework.get_U8g2());
+
+    /* Signal network task that boot screen is done */
+    xTaskNotifyGive(network_task_handle);
 
     // Empty loop
     for(;;)

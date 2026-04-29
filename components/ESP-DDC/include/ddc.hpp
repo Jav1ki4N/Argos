@@ -27,4 +27,5 @@
 
 /* Network */
 #include "network/ddc_wifi.hpp"
+#include "network/ddc_sntp.hpp"
 

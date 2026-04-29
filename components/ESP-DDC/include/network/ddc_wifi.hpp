@@ -28,15 +28,23 @@
 #include <string>
 
 /* Message passed from WIFI event handler to UI task via Queue */
+/* - In evnet handler wifi status is updated and loaded into a */
+/* - local WifiMsg struct, which will eventually be consumed.  */
 struct WifiMsg
 {
+    /* state define */
+    /* - each state represents a different wifi connection status */
+    /* - and referred to a certain event bits of wifi event group */
     enum State : uint8_t
     {
         Connecting = 0,
         Connected  = 1,
         Failed     = 2
     };
+
+    /* wifi connection state */
     State state;
+    /* ssid of connected wifi */
     char ssid[32];
 };
 
@@ -48,10 +56,10 @@ class WIFI
 
     enum class Mode : uint8_t
     {
-        Station,        // Connect to an existing Wi-Fi network
-        SoftAP,         // Create a Wi-Fi network for other devices to connect to
-        StationSoftAP,  // Both station and softAP modes at the same time
-        Sniffer         // Monitor mode for sniffing Wi-Fi packets
+        Station,        // client
+        SoftAP,         // host
+        StationSoftAP,  // do Both 
+        Sniffer         // sniffing Wi-Fi packets
     };
 
     WIFI(Mode mode, 
@@ -98,9 +106,12 @@ class WIFI
     }
 
     /* Queue-based IPC: event handler pushes WifiMsg here for UI task consumption */
+    /* - Setter: Passed handle must be a return value from xQueueCreate */
+    /* - Getter: Called within UI task to received the actual queue */
+    /* - All set to static cuz of class-level design (only one instance) */
     static void set_ui_queue(QueueHandle_t q)
     {
-        ui_queue = q;
+        ui_queue = q; // ui_queue is now functionally points to a certain queue
     }
 
     static QueueHandle_t get_ui_queue()
@@ -112,6 +123,11 @@ class WIFI
     
     std::string wifi_ssid     = "Hermes";
     std::string wifi_password = "Clairvoyance";
+
+    /* FreeRTOS Handles */
+    /* - wifi_event_group: handle of current wifi event group */
+    /* - ui_queue: handle of queue where data sent to UI task */
+    /* - all these handles will only work when assigned with an actual space of RAM */
 
     static inline EventGroupHandle_t wifi_event_group;
     static inline QueueHandle_t      ui_queue = nullptr;
@@ -146,11 +162,11 @@ class WIFI
             xEventGroupSetBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connecting));
             esp_wifi_connect();
 
-            if (ui_queue) {
-                WifiMsg msg{};
-                msg.state = WifiMsg::Connecting;
-                strlcpy(msg.ssid, wifi_ssid.c_str(), sizeof(msg.ssid));
-                xQueueSend(ui_queue, &msg, 0);
+            if (ui_queue) { // check if ui_queue is set 
+                WifiMsg msg{}; // local message struct, deleted after instant sent
+                msg.state = WifiMsg::Connecting; // load state
+                strlcpy(msg.ssid, wifi_ssid.c_str(), sizeof(msg.ssid)); // load ssid
+                xQueueSend(ui_queue, &msg, 0); // send through the queue via ui_queue
             }
         }
         // WIFI RECONNECT ===========================================================
