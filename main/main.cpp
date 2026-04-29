@@ -36,7 +36,7 @@ extern "C" void app_main(void)
     for(;;)
     {
         /* Consume WIFI -> UI messages before rendering */
-        UI_UpdateState(framework.get_UIAppState());
+        UI_UpdateState(framework.get_UIAppState(),client_q);
 
         /* Launch UI Render Service */
         UI_Render(framework.get_U8g2(), framework.get_UIAppState());

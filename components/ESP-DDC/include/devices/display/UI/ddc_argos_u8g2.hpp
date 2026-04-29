@@ -7,7 +7,9 @@
 
 #pragma once
 #include "ddc_argos_icon.hpp"
+#include "freertos/idf_additions.h"
 #include "u8g2.h"
+#include "../../../../../../main/network.hpp"
 #include <cstdint>
 #include <time.h>
 #include "ddc_animation.hpp"
@@ -58,10 +60,29 @@ enum class Page : uint8_t
 
 struct App_State
 {
-    int current_page_index = 1;
+    int current_page_index = 0;
     WifiMsg::State wifi_state = WifiMsg::Connecting;
     char wifi_ssid[32] = {};
     char time_str[16] = "00:00:00";
+
+    /* System Info */
+    char host_name[32]  = {};
+    char os[32]         = {};
+    char os_distro[64]  = {};
+
+    int   cpu_core_freq = 0;
+    int   cpu_cores     = 0;
+    int   cpu_threads   = 0;
+    float cpu_usage     = 0.0f;
+    float cpu_temp      = 0.0f;
+
+    int   mem_total     = 0;
+    int   mem_used      = 0;
+    float mem_usage     = 0.0f;
+
+    int   disk_total    = 0;
+    int   disk_used     = 0;
+    float disk_usage    = 0.0f;
 };
 
 /**********************************************************************************************/
@@ -171,6 +192,15 @@ inline void UI_DrawWifiIcon(u8g2_t *u8g2, const uint8_t *icon)
                   icon);
 }
 
+inline void UI_DrawPageInfo(u8g2_t *u8g2, const App_State& state)
+{
+    u8g2_SetFont(u8g2, ARGOS_FONT);
+    u8g2_SetDrawColor(u8g2, 1);
+    
+    u8g2_DrawStr(u8g2, 9, 24, state.host_name);
+    u8g2_DrawStr(u8g2, 9, 37, state.os);
+}
+
 inline void UI_DrawPageWifi(u8g2_t *u8g2, const App_State& state)
 {
     u8g2_SetFont(u8g2, ARGOS_FONT);
@@ -198,6 +228,7 @@ inline void UI_DrawPageWifi(u8g2_t *u8g2, const App_State& state)
 
 inline void UI_DrawPage(u8g2_t *u8g2, const App_State& state)
 {
+
     if(state.current_page_index == 1) // network page
     {
         UI_DrawPageWifi(u8g2, state);
@@ -205,6 +236,10 @@ inline void UI_DrawPage(u8g2_t *u8g2, const App_State& state)
     else if(state.current_page_index == 2) // About page
     {
 
+    }
+    else if(state.current_page_index == 0) // Info page
+    {
+        UI_DrawPageInfo(u8g2, state);
     }
 }
 
@@ -225,7 +260,7 @@ inline void UI_PageTurn(u8g2_t *u8g2, Direction dir, App_State& state)
 
 // Drain the WIFI -> UI queue and update cached App_State.
 // Call this once per frame before UI_Render.
-inline void UI_UpdateState(App_State& state)
+inline void UI_UpdateState(App_State& state, QueueHandle_t client_q)
 {
     QueueHandle_t q = WIFI::get_ui_queue();
     if (!q) return;
@@ -236,6 +271,7 @@ inline void UI_UpdateState(App_State& state)
         strlcpy(state.wifi_ssid, msg.ssid, sizeof(state.wifi_ssid));
     }
 
+    /* Get Time */
     time_t now;
     struct tm timeinfo;
     time(&now);
@@ -243,6 +279,32 @@ inline void UI_UpdateState(App_State& state)
     
     if (timeinfo.tm_year > (2016 - 1900)) {
         strftime(state.time_str, sizeof(state.time_str), "%H:%M:%S", &timeinfo);
+    }
+
+    /* Get System Info */
+    if (client_q) 
+    {
+        ClientMsg cmsg;
+        while (xQueueReceive(client_q, &cmsg, 0) == pdTRUE)
+        {
+            strlcpy(state.host_name, cmsg.host_name, sizeof(state.host_name));
+            strlcpy(state.os, cmsg.os, sizeof(state.os));
+            strlcpy(state.os_distro, cmsg.os_distro, sizeof(state.os_distro));
+
+            state.cpu_core_freq = cmsg.cpu_core_freq;
+            state.cpu_cores     = cmsg.cpu_cores;
+            state.cpu_threads   = cmsg.cpu_threads;
+            state.cpu_usage     = cmsg.cpu_usage;
+            state.cpu_temp      = cmsg.cpu_temp;
+
+            state.mem_total     = cmsg.mem_total;
+            state.mem_used      = cmsg.mem_used;
+            state.mem_usage     = cmsg.mem_usage;
+
+            state.disk_total    = cmsg.disk_total;
+            state.disk_used     = cmsg.disk_used;
+            state.disk_usage    = cmsg.disk_usage;
+        }
     }
 }
 

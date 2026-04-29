@@ -28,4 +28,5 @@
 /* Network */
 #include "network/ddc_wifi.hpp"
 #include "network/ddc_sntp.hpp"
+#include "network/ddc_http_client.hpp"
 

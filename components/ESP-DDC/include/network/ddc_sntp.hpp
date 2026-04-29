@@ -29,8 +29,12 @@ inline bool ddc_sntp_sync(const char *server = "pool.ntp.org", // SNTP server
                           int timeout_ms = 2000)               // timeout for each SNTP sync request
 {
     /* Init SNTP service */
+    /* - use default config */
     /* - start request   */
     esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(server);
+
+    /* SNTP is one and only so no handle */
+    /* - and there's no much to interact with */
     esp_netif_sntp_init(&config);
 
     int retry_count = 0; // current retry count

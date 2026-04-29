@@ -26,6 +26,8 @@ CompileFlags:
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_partition/include
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/freertos/esp_additions/include
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_timer/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_http_client/include
+
 
 InlayHints:
   Enabled: true
