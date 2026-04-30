@@ -6,14 +6,28 @@
 /*===============================*/
 
 #pragma once
+
+/* Task requirement */
+/* - for receiving queue handle */
+#define NETWORK_TASK_ON 1
+#if     NETWORK_TASK_ON
+    #include "../../../../../../main/network.hpp"
+#endif
+
+/* DDC headers */
+/* - same directory */
 #include "ddc_argos_icon.hpp"
+#include "ddc_animation.hpp"
+/* - other directories */
+#include "../../../network/ddc_wifi.hpp"
+
+/* ESP-IDF Components */
 #include "freertos/idf_additions.h"
 #include "u8g2.h"
-#include "../../../../../../main/network.hpp"
+
+/* C/C++ Libraries */
 #include <cstdint>
 #include <time.h>
-#include "ddc_animation.hpp"
-#include "../../../network/ddc_wifi.hpp"
 
 // Element placement
 static constexpr uint8_t SCREEN_WIDTH = 255, 
@@ -32,6 +46,8 @@ static constexpr uint8_t SCREEN_WIDTH = 255,
 static constexpr const uint8_t* ARGOS_FONT  = (uint8_t*)u8g2_font_profont11_tr;
 static constexpr const char*    ARGOS_TITLE = "Argos V1.0";
 static constexpr const char*    PAGES[3]    = {"INFO", "NETWORK", "ABOUT"};
+
+// Animation Frames & Intervals
 static constexpr const uint8_t* BOOT_SCREEN_ICONS[5]     = {icon_argos,
                                                             icon_argos_alter,
                                                             icon_void,
@@ -56,19 +72,23 @@ enum class Page : uint8_t
     About   = 2
 };
 
-// UI Application state & Info
 
 struct App_State
 {
-    int current_page_index = 0;
-    WifiMsg::State wifi_state = WifiMsg::Connecting;
-    char wifi_ssid[32] = {};
+    /* state control vars */
+    int current_page_index = 1; // default to network page cuz I made an animation for it 
+
+    /* WIFI Info */
+    WifiMsg::State wifi_state = WifiMsg::Connecting; // in-class wifi state is defined as bits
+    char wifi_ssid[32] = {};                         // this one is defined in WifiMsg
+
+    /* Time Info */
     char time_str[16] = "00:00:00";
 
     /* System Info */
     char host_name[32]  = {};
     char os[32]         = {};
-    char os_distro[64]  = {};
+    char os_distro[64]  = {}; // not used
 
     int   cpu_core_freq = 0;
     int   cpu_cores     = 0;
@@ -125,6 +145,7 @@ inline void UI_DrawBootScreen(u8g2_t *u8g2)
         if(frame == 4)break;
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
+    /* For default page see struct App_State  */
 }
 
 // Update tags on the navigation bar
@@ -192,57 +213,6 @@ inline void UI_DrawWifiIcon(u8g2_t *u8g2, const uint8_t *icon)
                   icon);
 }
 
-inline void UI_DrawPageInfo(u8g2_t *u8g2, const App_State& state)
-{
-    u8g2_SetFont(u8g2, ARGOS_FONT);
-    u8g2_SetDrawColor(u8g2, 1);
-    
-    u8g2_DrawStr(u8g2, 9, 24, state.host_name);
-    u8g2_DrawStr(u8g2, 9, 37, state.os);
-}
-
-inline void UI_DrawPageWifi(u8g2_t *u8g2, const App_State& state)
-{
-    u8g2_SetFont(u8g2, ARGOS_FONT);
-    u8g2_SetDrawColor(u8g2, 1);
-    static Animation<3> wifi_connecting_anime;
-
-    if (state.wifi_state == WifiMsg::Failed)
-    {
-        UI_DrawWifiIcon(u8g2, icon_wifi_no_connect);
-    }
-    else if (state.wifi_state == WifiMsg::Connecting)
-    {
-        wifi_connecting_anime.update(WIFI_ANIMATION_INTERVAL);
-        UI_DrawWifiIcon(u8g2, WIFI_CONNECTING_ICONS[wifi_connecting_anime.frame]);
-    }
-    else // WifiMsg::Connected
-    {
-        if (!wifi_connecting_anime.static_update(1500))
-            UI_DrawWifiIcon(u8g2, icon_wifi_connected); // enter page
-        /* page content */
-        //u8g2_DrawStr(u8g2, 9, 24, state.wifi_ssid);
-        u8g2_DrawBox(u8g2, 9, 23, 32, 32);
-    }
-}
-
-inline void UI_DrawPage(u8g2_t *u8g2, const App_State& state)
-{
-
-    if(state.current_page_index == 1) // network page
-    {
-        UI_DrawPageWifi(u8g2, state);
-    }
-    else if(state.current_page_index == 2) // About page
-    {
-
-    }
-    else if(state.current_page_index == 0) // Info page
-    {
-        UI_DrawPageInfo(u8g2, state);
-    }
-}
-
 inline void UI_PageTurn(u8g2_t *u8g2, Direction dir, App_State& state)
 {
     if(dir == Direction::Left || dir == Direction::Right)
@@ -254,6 +224,84 @@ inline void UI_PageTurn(u8g2_t *u8g2, Direction dir, App_State& state)
     }
     // invaild direction
     else return;
+}
+
+inline void UI_DrawPageAbout(u8g2_t *u8g2)
+{
+
+}
+
+inline void UI_DrawPageInfo(u8g2_t *u8g2, const App_State& state)
+{
+    u8g2_SetFont(u8g2, ARGOS_FONT);
+    u8g2_SetDrawColor(u8g2, 1);
+    
+    char buf[128];
+    
+    snprintf(buf, sizeof(buf), "HOST: %s (%s)", state.host_name, state.os);
+    u8g2_DrawStr(u8g2, 5, 24, buf);
+    
+    snprintf(buf, sizeof(buf), "CPU: %dC/%dT %dMHz %.1f%%", state.cpu_cores, state.cpu_threads, state.cpu_core_freq, state.cpu_usage);
+    u8g2_DrawStr(u8g2, 5, 36, buf);
+    
+    snprintf(buf, sizeof(buf), "MEM: %d/%dMB %.1f%%", state.mem_used, state.mem_total, state.mem_usage);
+    u8g2_DrawStr(u8g2, 5, 48, buf);
+    
+    snprintf(buf, sizeof(buf), "DSK: %d/%dGB %.1f%%", state.disk_used, state.disk_total, state.disk_usage);
+    u8g2_DrawStr(u8g2, 5, 60, buf);
+}
+
+inline void UI_DrawPageWifi(u8g2_t *u8g2, const App_State& state)
+{
+    static bool boot_enter = true;
+
+    u8g2_SetFont(u8g2, ARGOS_FONT);
+    u8g2_SetDrawColor(u8g2, 1);
+    static Animation<3> wifi_connecting_anime;
+
+    if (state.wifi_state == WifiMsg::Failed)
+    {
+        UI_DrawWifiIcon(u8g2, icon_wifi_no_connect);
+        /* If failed, do not turn to Info cuz there's nothing */
+    }
+    else if (state.wifi_state == WifiMsg::Connecting)
+    {
+        wifi_connecting_anime.update(WIFI_ANIMATION_INTERVAL);
+        UI_DrawWifiIcon(u8g2, WIFI_CONNECTING_ICONS[wifi_connecting_anime.frame]);
+    }
+    else // WifiMsg::Connected
+    {
+        if (!wifi_connecting_anime.static_update(1500))
+            UI_DrawWifiIcon(u8g2, icon_wifi_connected);
+        
+        /* on boot page turn, execute once only */
+        if(boot_enter)
+        {
+            boot_enter = false;
+            if (!wifi_connecting_anime.static_update(1000))
+            UI_PageTurn(u8g2, Direction::Left, const_cast<App_State&>(state)); // to Info page
+        }
+        /* page content */
+        //u8g2_DrawStr(u8g2, 9, 24, state.wifi_ssid);
+        
+    }
+}
+
+inline void UI_DrawPage(u8g2_t *u8g2, const App_State& state)
+{
+    /* page state is driven by state update func */
+    if(state.current_page_index == 1) // Network page
+    {
+        UI_DrawPageWifi(u8g2, state);
+    }
+    else if(state.current_page_index == 2) // About page
+    {
+        UI_DrawPageAbout(u8g2);
+    }
+    else if(state.current_page_index == 0) // Info page
+    {
+        UI_DrawPageInfo(u8g2, state);
+    }
 }
 
 /*****************************************************************************************/

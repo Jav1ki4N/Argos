@@ -1,14 +1,17 @@
+/* Application headers */
+#include "main.hpp"
+#include "network.hpp"
+
+/* DDC headers */
+#include "ddc.hpp"
+
+/* ESP-IDF Components */
 #include "freertos/idf_additions.h"
 #include "hal/spi_types.h"
 #include "soc/gpio_num.h"
+
+/* C/C++ Libraries */
 #include <cstdio>
-
-/* Components */
-#include "ddc.hpp"
-
-/* Tasks */
-#include "main.hpp"
-#include "network.hpp"
 
 SSD1322 *Argos_framework = nullptr;
 

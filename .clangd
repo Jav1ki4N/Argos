@@ -5,6 +5,9 @@ CompileFlags:
     - -fno-shrink-wrap
     - -fstrict-volatile-bitfields
     - -fno-tree-switch-conversion
+    - -Werror=format-truncation
+    - -Werror=format-truncation=
+    
   Add:
     - -isystem/home/i4n/.espressif/tools/esp-clang/esp-19.1.2_20250312/esp-clang/lib/clang/19/include
     - -isystem/home/i4n/.espressif/tools/esp-clang/esp-19.1.2_20250312/esp-clang/lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include
@@ -34,3 +37,4 @@ InlayHints:
 
 Diagnostics:
   UnusedIncludes: false
+  

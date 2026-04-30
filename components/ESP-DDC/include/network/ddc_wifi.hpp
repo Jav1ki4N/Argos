@@ -13,18 +13,18 @@
 /*===================================================*/
 #pragma once
 
-/* Includes */
-/* CMakeLists.txt: REQUIRES esp_wifi FreeRTOS*/
+/* ESP-IDF Components */
+/* CMakeLists.txt: REQUIRES esp\_wifi FreeRTOS */
 #include "esp_netif_types.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
-
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
 #include "freertos/queue.h"
 
+/* C/C++ Libraries */
 #include <string>
 
 /* Message passed from WIFI event handler to UI task via Queue */

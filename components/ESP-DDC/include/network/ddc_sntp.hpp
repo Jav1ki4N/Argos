@@ -13,11 +13,14 @@
 /*===================================================*/
 #pragma once
 
-#include <time.h>
-#include <sys/time.h>
+/* ESP-IDF Components */
 #include "esp_log.h"
 #include "esp_netif_sntp.h"
 #include "esp_sntp.h"
+
+/* C/C++ Libraries */
+#include <time.h>
+#include <sys/time.h>
 
 static const char *SNTP_TAG = "SNTP";
 

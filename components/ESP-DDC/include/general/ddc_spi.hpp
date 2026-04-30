@@ -12,14 +12,12 @@
 /*          and device attachment / detachment.      */
 /*===================================================*/
 #pragma once
-/* Includes */
+
+/* ESP-IDF Components */
 #include "driver/spi_common.h"
+#include "driver/spi_master.h"
 #include "hal/spi_types.h"
-#include <driver/spi_master.h>
-#include <esp_err.h>
-/* If include files can't be found by clangd     */
-/* make sure this file is included by a cpp file */
-/* that is in SRC of main/CMakeLists.txt         */
+#include "esp_err.h"
 
 /* Class */
 class SPI
