@@ -46,6 +46,8 @@ managed_components/
 
 /private/
 
+/linux/build/
+
 # CMake generated files
 CMakeCache.txt
 CMakeFiles/
