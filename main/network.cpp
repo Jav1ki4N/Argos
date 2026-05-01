@@ -14,7 +14,7 @@
 
 /* Global vars */
 QueueHandle_t client_q = nullptr; // need to be accessed in UI Task
-static const char* TARGET_URL = "http://10.132.210.84:8080/api/info";
+static const char* TARGET_URL = "http://10.57.166.84:8080/api/info";
 
 void network_task(void *arg)
 {

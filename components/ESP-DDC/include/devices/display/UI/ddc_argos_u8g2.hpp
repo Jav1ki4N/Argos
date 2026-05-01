@@ -9,6 +9,7 @@
 
 /* Task requirement */
 /* - for receiving queue handle */
+#include "sd_protocol_types.h"
 #define NETWORK_TASK_ON 1
 #if     NETWORK_TASK_ON
     #include "../../../../../../main/network.hpp"
@@ -42,12 +43,26 @@ static constexpr uint8_t SCREEN_WIDTH = 255,
                          ICON_SIZE_BIGGER = 40,
                          WIFI_ICON_WIDTH = 40,
                          WIFI_ICON_HEIGHT = 35,
-                         LINE1 = 24,
-                         LINE2 = 36,
-                         LINE3 = 48,
                          LINE4 = 60,
                          TEXT_GAP_FROM_LEFT = 5,
                          ABOUT_TEXT_GAP_FROM_ICON = 10;
+
+// Text Placement
+
+static constexpr uint8_t LINE1 = 29,
+                         LINE2 = 42,
+                         LINE3 = 55;
+
+// Graph Placement
+static constexpr uint8_t GRAPH_X      = 173,
+                         GRAPH_Y      = 18,
+                         GRAPH_WIDTH  = 76,
+                         GRAPH_HEIGHT = 40,
+                         POINT_A_X = 173,
+                         POINT_B_X = POINT_A_X + 19,
+                         POINT_C_X = POINT_B_X + 19,
+                         POINT_D_X = POINT_C_X + 19,
+                         POINT_E_X = POINT_D_X + 18;
 
 
 // Other constants
@@ -87,7 +102,7 @@ enum class Page : uint8_t
 struct App_State
 {
     /* state control vars */
-    int current_page_index = 2; // default to network page cuz I made an animation for it 
+    int current_page_index = 1; // default to network page cuz I made an animation for it 
 
     /* WIFI Info */
     WifiMsg::State wifi_state = WifiMsg::Connecting; // in-class wifi state is defined as bits
@@ -114,6 +129,8 @@ struct App_State
     int   disk_total    = 0;
     int   disk_used     = 0;
     float disk_usage    = 0.0f;
+
+    /* User Control */
 };
 
 /**********************************************************************************************/
@@ -249,38 +266,75 @@ inline void UI_DrawPageAbout(u8g2_t *u8g2)
 
     u8g2_DrawStr(u8g2, 
                  7*TEXT_GAP_FROM_LEFT + ICON_SIZE_BIGGER, 
-                 LINE1+6, 
+                 LINE1, 
                  ABOUT_TEXT[0]);
     
     u8g2_DrawStr(u8g2, 
                  7*TEXT_GAP_FROM_LEFT + ICON_SIZE_BIGGER, 
-                 LINE2+6,
+                 LINE2,
                  ABOUT_TEXT[1]);
 
     u8g2_DrawStr(u8g2, 
                  7*TEXT_GAP_FROM_LEFT + ICON_SIZE_BIGGER, 
-                 LINE3+6,
+                 LINE3,
                  ABOUT_TEXT[2]);
+}
+
+inline uint8_t map_to_graph_y(float value, float max_value = 100.0f)
+{
+    if (value < 0.0f)  value = 0.0f;
+    if (value > max_value) value = max_value;
+    uint8_t h = (uint8_t)(value * GRAPH_HEIGHT / max_value);
+    return GRAPH_Y + GRAPH_HEIGHT - 1 - h;
+}
+
+inline void UI_DrawGraph(u8g2_t *u8g2, const App_State& state)
+{
+    static uint8_t history[5] = {}; // rolling Y values, index 4 is newest
+
+    // Shift left
+    for (int i = 0; i < 4; i++)
+        history[i] = history[i + 1];
+
+    // Newest reading at rightmost point
+    history[4] = map_to_graph_y(state.cpu_temp, 100.0f);
+
+    const uint8_t px[5] = {POINT_A_X, POINT_B_X, POINT_C_X, POINT_D_X, POINT_E_X};
+
+    u8g2_SetDrawColor(u8g2, 1);
+    for (int i = 0; i < 4; i++)
+        u8g2_DrawLine(u8g2, px[i], history[i], px[i + 1], history[i + 1]);
 }
 
 inline void UI_DrawPageInfo(u8g2_t *u8g2, const App_State& state)
 {
     u8g2_SetFont(u8g2, ARGOS_FONT);
     u8g2_SetDrawColor(u8g2, 1);
-    
+
     char buf[128];
-    
-    snprintf(buf, sizeof(buf), "HOST: %s (%s)", state.host_name, state.os);
+
+    snprintf(buf, sizeof(buf), "HOST: %s  (%s)", state.host_name, state.os);
     u8g2_DrawStr(u8g2, TEXT_GAP_FROM_LEFT, LINE1, buf);
-    
-    snprintf(buf, sizeof(buf), "CPU:  %dC/%dT %dMHz %.1f%%", state.cpu_cores, state.cpu_threads, state.cpu_core_freq, state.cpu_usage);
+
+    snprintf(buf, sizeof(buf), "CPU:  %dC/%dT %d MHz %.1f%%", state.cpu_cores, state.cpu_threads, state.cpu_core_freq, state.cpu_usage);
     u8g2_DrawStr(u8g2, TEXT_GAP_FROM_LEFT, LINE2, buf);
-    
-    snprintf(buf, sizeof(buf), "MEM:  %d/%d MB %.1f%%", state.mem_used, state.mem_total, state.mem_usage);
+
+    snprintf(buf, sizeof(buf), "MEM:  %d/%d  MB %.1f%%", state.mem_used, state.mem_total, state.mem_usage);
     u8g2_DrawStr(u8g2, TEXT_GAP_FROM_LEFT, LINE3, buf);
-    
-    snprintf(buf, sizeof(buf), "DISK: %d/%d GB %.1f%%", state.disk_used, state.disk_total, state.disk_usage);
-    u8g2_DrawStr(u8g2, TEXT_GAP_FROM_LEFT, LINE4, buf);
+
+    // snprintf(buf, sizeof(buf), "DISK: %d/%d      GB %.1f%%", state.disk_used, state.disk_total, state.disk_usage);
+    // u8g2_DrawStr(u8g2, TEXT_GAP_FROM_LEFT, LINE4, buf);
+
+    u8g2_DrawFrame(u8g2, GRAPH_X, GRAPH_Y, GRAPH_WIDTH, GRAPH_HEIGHT);
+
+    // Dashed reference line at graph mid-height
+    const uint8_t ref_y  = GRAPH_Y + GRAPH_HEIGHT / 2;
+    const uint8_t ref_x1 = GRAPH_X + 3;
+    const uint8_t ref_x2 = GRAPH_X + GRAPH_WIDTH - 2;
+    for (uint8_t x = ref_x1; x < ref_x2; x += 6)
+        u8g2_DrawHLine(u8g2, x, ref_y, 3);
+
+    UI_DrawGraph(u8g2, state);
 }
 
 inline void UI_DrawPageWifi(u8g2_t *u8g2, const App_State& state)
