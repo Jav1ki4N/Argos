@@ -18,6 +18,8 @@
 
 ![](https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/argos_example.gif)
 
+![](https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/Top.png)
+
 ----
 
 ## Deployment
