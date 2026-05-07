@@ -1,18 +1,19 @@
 # Argos
 
+[中文](./readme_zh.md) | **English**
 
 ![Static Badge](https://img.shields.io/badge/ESP--IDF-5.5.4-none?logo=espressif&color=%23E7352C)
 
-## What is it ?
+## What is it?
 
-**Argos** ( *Ἄργος* ) is a  system Info monitor that displays system infomation such as:
+**Argos** (*Ἄργος*) is a system monitor that displays host system information on an ESP32-driven OLED screen:
 
 - Host name
-- CPU Core & Thread numbers / Core temperature / Frequeny / Usage
-- Memory Total size / Used size 
-- Disk Total size / Used size
+- CPU Core / Thread count, frequency, temperature, and usage
+- Memory total, used, and usage percentage
+- Disk total, used, and usage percentage
 - Operating System type
-- Local time
+- Local time (NTP-synced)
 
 ![](https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/Argos.jpg)
 
@@ -22,38 +23,68 @@
 
 ----
 
+## How it works
+
+Argos has two components:
+
+1. **A PC-side agent** (`./server`) — a lightweight binary that collects system metrics (CPU, memory, disk, OS info) and exposes them as a JSON HTTP endpoint on port `8080`.
+
+2. **An ESP32 device** — connects to the same Wi-Fi network, polls the agent's `/api/info` endpoint every second, parses the JSON response, and renders the data on an SSD1322 OLED display (256×64).
+
+----
+
 ## Deployment
 
-### Linux
+### 1. PC Agent (Server)
 
 ```bash
 git clone https://github.com/Jav1ki4N/Argos.git
-```
-
-```bash
+cd Argos
 ./server
 ```
 
-If ESP-32 and the host machine are connected to the same Wi-Fi network, and target url's `x.x.x.x:8080/api/info` is set to address shown in
+Once running, verify the endpoint is reachable:
 
 ```bash
-ip a
+curl http://$(hostname -I | awk '{print $1}'):8080/api/info
 ```
-then in `INFO` page all information will be displayed.
 
-If there's any probelm you can use the device monitor inside ESP-IDF to check logs reported by ESP32.
+### 2. ESP32 Firmware
 
-## Log
+Before flashing, update the WiFi credentials and the server IP in [`main/network.cpp`](main/network.cpp):
 
- - [x] Get it working
- - [x] Verified with ESP32C3
- - [x] Make a PCB 
- - [ ] Add a way that allows Wi-Fi SSID & Target URL to be modified while the device is running instead of hard-coded in code
-    - web
-    - app
- - [ ] Utlitize power consumption
- - [ ] Use MQTT instead of HTTP client
- - [ ] Support OTA via Wi-Fi
- - [ ] Use integrated ESP-32 instead of dev board
+- `TARGET_URL` — set to your PC's local IP (the one shown by the `curl` command above)
+- SSID and password — set to your Wi-Fi credentials
 
+Then build and flash with ESP-IDF:
 
+```bash
+idf.py build flash monitor
+```
+
+The ESP32 and the host machine must be on the same Wi-Fi network.
+
+### Troubleshooting
+
+Use `idf.py monitor` to view ESP32 logs if the display doesn't update.
+
+----
+
+## Hardware
+
+- **MCU**: ESP32-C3 (dev board or integrated module)
+- **Display**: SSD1322 OLED, 256×64, SPI interface
+- **PCB**: See [assets/](assets/) for KiCad files and renders
+
+----
+
+## TODO
+
+- [x] Get it working
+- [x] Verified with ESP32-C3
+- [x] Make a PCB
+- [ ] Cloud-configurable Wi-Fi SSID & target URL (no hard-coding)
+- [ ] Lower power consumption
+- [ ] MQTT transport instead of HTTP polling
+- [ ] OTA firmware updates over Wi-Fi
+- [ ] Use integrated ESP32-C3 module instead of dev board
