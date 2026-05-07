@@ -4,7 +4,7 @@
 
 ![Static Badge](https://img.shields.io/badge/ESP--IDF-5.5.4-none?logo=espressif&color=%23E7352C)
 
-## 这是什么？
+## 关于此项目
 
 **Argos**（*Ἄργος*）是一台系统监控器，通过 ESP32 驱动的 OLED 屏幕显示主机系统信息：
 
@@ -33,9 +33,9 @@ Argos 由两部分组成：
 
 ----
 
-## 部署
+## 部署 (Linux)
 
-### 1. PC 端采集程序
+### 1. PC端
 
 ```bash
 git clone https://github.com/Jav1ki4N/Argos.git
@@ -53,7 +53,7 @@ curl http://$(hostname -I | awk '{print $1}'):8080/api/info
 
 烧录前，在 [`main/network.cpp`](main/network.cpp) 中修改 WiFi 凭证和服务器 IP：
 
-- `TARGET_URL` —— 填写 PC 的局域网 IP（即上方 `curl` 命令中显示的地址）
+- `TARGET_URL` —— 填写 PC 的局域网 IP，即 `curl` 命令中显示的地址
 - SSID 和密码 —— 填写 Wi-Fi 网络凭证
 
 使用 ESP-IDF 构建并烧录：
@@ -62,7 +62,7 @@ curl http://$(hostname -I | awk '{print $1}'):8080/api/info
 idf.py build flash monitor
 ```
 
-ESP32 和主机必须在同一 Wi-Fi 网络下。
+ESP32 和主机必须处于同一 Wi-Fi 网络下。
 
 ### 故障排查
 
@@ -72,9 +72,8 @@ ESP32 和主机必须在同一 Wi-Fi 网络下。
 
 ## 硬件
 
-- **主控**: ESP32-C3（开发板或集成模块）
-- **显示屏**: SSD1322 OLED，256×64，SPI 接口
-- **PCB**: 见 [assets/](assets/) 目录下的 KiCad 文件和渲染图
+- **主控**: ESP32-C3
+- **显示**: SSD1322 OLED，256×64，4线SPI
 
 ----
 
@@ -83,8 +82,8 @@ ESP32 和主机必须在同一 Wi-Fi 网络下。
 - [x] 跑通原型
 - [x] 验证 ESP32-C3 兼容性
 - [x] 制作 PCB
-- [ ] WiFi SSID 和 URL 云端可配（不再硬编码）
+- [ ] 提供 WIFI 和 HTTP URL 云端配置
 - [ ] 优化功耗
 - [ ] 用 MQTT 替代 HTTP 轮询
-- [ ] 支持 Wi-Fi OTA 固件更新
+- [ ] Wi-Fi OTA 固件更新
 - [ ] 使用集成式 ESP32-C3 模组替代开发板

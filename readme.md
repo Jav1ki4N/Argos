@@ -4,7 +4,7 @@
 
 ![Static Badge](https://img.shields.io/badge/ESP--IDF-5.5.4-none?logo=espressif&color=%23E7352C)
 
-## What is it?
+## About this project
 
 **Argos** (*Ἄργος*) is a system monitor that displays host system information on an ESP32-driven OLED screen:
 
@@ -72,10 +72,9 @@ Use `idf.py monitor` to view ESP32 logs if the display doesn't update.
 
 ## Hardware
 
-- **MCU**: ESP32-C3 (dev board or integrated module)
+- **MCU**: ESP32-C3 Supermini
 - **Display**: SSD1322 OLED, 256×64, SPI interface
-- **PCB**: See [assets/](assets/) for KiCad files and renders
-
+- 
 ----
 
 ## TODO
@@ -83,7 +82,7 @@ Use `idf.py monitor` to view ESP32 logs if the display doesn't update.
 - [x] Get it working
 - [x] Verified with ESP32-C3
 - [x] Make a PCB
-- [ ] Cloud-configurable Wi-Fi SSID & target URL (no hard-coding)
+- [ ] Cloud-configurable Wi-Fi SSID & target URL
 - [ ] Lower power consumption
 - [ ] MQTT transport instead of HTTP polling
 - [ ] OTA firmware updates over Wi-Fi
