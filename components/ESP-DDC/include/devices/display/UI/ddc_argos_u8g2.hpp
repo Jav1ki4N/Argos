@@ -9,7 +9,6 @@
 
 /* Task requirement */
 /* - for receiving queue handle */
-#include "sd_protocol_types.h"
 #define NETWORK_TASK_ON 1
 #if     NETWORK_TASK_ON
     #include "../../../../../../main/network.hpp"
@@ -105,7 +104,7 @@ struct App_State
     int current_page_index = 1; // default to network page cuz I made an animation for it 
 
     /* WIFI Info */
-    WifiMsg::State wifi_state = WifiMsg::Connecting; // in-class wifi state is defined as bits
+    WIFI::WifiMsg::State wifi_state = WIFI::WifiMsg::Connecting; // in-class wifi state is defined as bits
     char wifi_ssid[32] = {};                         // this one is defined in WifiMsg
 
     /* Time Info */
@@ -345,12 +344,12 @@ inline void UI_DrawPageWifi(u8g2_t *u8g2, const App_State& state)
     u8g2_SetDrawColor(u8g2, 1);
     static Animation<3> wifi_connecting_anime;
 
-    if (state.wifi_state == WifiMsg::Failed)
+    if (state.wifi_state == WIFI::WifiMsg::Failed)
     {
         UI_DrawWifiIcon(u8g2, icon_wifi_no_connect);
         /* If failed, do not turn to Info cuz there's nothing */
     }
-    else if (state.wifi_state == WifiMsg::Connecting)
+    else if (state.wifi_state == WIFI::WifiMsg::Connecting)
     {
         wifi_connecting_anime.update(WIFI_ANIMATION_INTERVAL);
         UI_DrawWifiIcon(u8g2, WIFI_CONNECTING_ICONS[wifi_connecting_anime.frame]);
@@ -400,9 +399,9 @@ inline void UI_DrawPage(u8g2_t *u8g2, const App_State& state)
 // Call this once per frame before UI_Render.
 inline void UI_UpdateState(App_State& state, QueueHandle_t client_q)
 {
-    QueueHandle_t q = WIFI::get_ui_queue();
+    QueueHandle_t q = WIFI::get_MsgQueue();
     if (!q) return;
-    WifiMsg msg;
+    WIFI::WifiMsg msg;
     while (xQueueReceive(q, &msg, 0) == pdTRUE)
     {
         state.wifi_state = msg.state;

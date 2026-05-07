@@ -16,7 +16,6 @@
 /* ESP-IDF Components */
 #include "esp_log.h"
 #include "esp_netif_sntp.h"
-#include "esp_sntp.h"
 
 /* C/C++ Libraries */
 #include <time.h>

@@ -27,28 +27,6 @@
 /* C/C++ Libraries */
 #include <string>
 
-/* Message passed from WIFI event handler to UI task via Queue */
-/* - In evnet handler wifi status is updated and loaded into a */
-/* - local WifiMsg struct, which will eventually be consumed.  */
-struct WifiMsg
-{
-    /* state define */
-    /* - each state represents a different wifi connection status */
-    /* - and referred to a certain event bits of wifi event group */
-    enum State : uint8_t
-    {
-        Connecting = 0,
-        Connected  = 1,
-        Failed     = 2
-    };
-
-    /* wifi connection state */
-    State state;
-    /* ssid of connected wifi */
-    char ssid[32];
-};
-
-
 
 class WIFI
 {
@@ -87,6 +65,25 @@ class WIFI
         init_core(mode, auth_mode);
     }
 
+    /* WIFI Message */
+    /* - If any tasks needs to receive WIFI status updates */
+    /* - get_MsgQueue() should be used to access the queue */
+    struct WifiMsg
+    {
+        /* WIFI Connection state    */
+        /* - check event group bits */
+        enum State : uint8_t
+        {
+            Connecting = 0,
+            Connected  = 1,
+            Failed     = 2
+        }state;
+
+        /* ssid of connected wifi */
+        /* - can't be made std::string cuz queue doesn't support it */
+    char ssid[32];
+    };
+
     /* FreeRTOS Event Group  */
     enum class WifiEventBits : uint8_t
     {
@@ -95,28 +92,9 @@ class WIFI
         connecting = 1 << 2    // Bit 2: Currently trying to connect to Wi-Fi
     };
 
-    static EventGroupHandle_t get_event_group()
+    static QueueHandle_t get_MsgQueue()
     {
-        return wifi_event_group;
-    }
-
-    const char* get_ssid() const
-    {
-        return wifi_ssid.c_str();
-    }
-
-    /* Queue-based IPC: event handler pushes WifiMsg here for UI task consumption */
-    /* - Setter: Passed handle must be a return value from xQueueCreate */
-    /* - Getter: Called within UI task to received the actual queue */
-    /* - All set to static cuz of class-level design (only one instance) */
-    static void set_ui_queue(QueueHandle_t q)
-    {
-        ui_queue = q; // ui_queue is now functionally points to a certain queue
-    }
-
-    static QueueHandle_t get_ui_queue()
-    {
-        return ui_queue;
+        return msg_queue;
     }
 
     private:
@@ -126,11 +104,11 @@ class WIFI
 
     /* FreeRTOS Handles */
     /* - wifi_event_group: handle of current wifi event group */
-    /* - ui_queue: handle of queue where data sent to UI task */
+    /* - msg_queue: handle of queue where data sent to UI task */
     /* - all these handles will only work when assigned with an actual space of RAM */
 
     static inline EventGroupHandle_t wifi_event_group;
-    static inline QueueHandle_t      ui_queue = nullptr;
+    static inline QueueHandle_t      msg_queue = nullptr;
 
     /* WIFI Reconnect Settings */
     uint8_t          wifi_retry_count = 0;        // connect retry counter
@@ -162,11 +140,11 @@ class WIFI
             xEventGroupSetBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connecting));
             esp_wifi_connect();
 
-            if (ui_queue) { // check if ui_queue is set 
+            if (msg_queue) { // check if msg_queue is set 
                 WifiMsg msg{}; // local message struct, deleted after instant sent
                 msg.state = WifiMsg::Connecting; // load state
                 strlcpy(msg.ssid, wifi_ssid.c_str(), sizeof(msg.ssid)); // load ssid
-                xQueueSend(ui_queue, &msg, 0); // send through the queue via ui_queue
+                xQueueSend(msg_queue, &msg, 0); // send through the queue via msg_queue
             }
         }
         // WIFI RECONNECT ===========================================================
@@ -182,11 +160,11 @@ class WIFI
                 wifi_retry_count++; // update retry count
                 ESP_LOGI("WIFI", "Retrying to connect to the AP");
 
-                if (ui_queue) {
+                if (msg_queue) {
                     WifiMsg msg{};
                     msg.state = WifiMsg::Connecting;
                     strlcpy(msg.ssid, wifi_ssid.c_str(), sizeof(msg.ssid));
-                    xQueueSend(ui_queue, &msg, 0);
+                    xQueueSend(msg_queue, &msg, 0);
                 }
             }
             // WIFI FAILED =======================================================================
@@ -196,11 +174,11 @@ class WIFI
                 xEventGroupClearBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connecting));
                 ESP_LOGE("WIFI", "Failed to connect to the AP");
 
-                if (ui_queue) {
+                if (msg_queue) {
                     WifiMsg msg{};
                     msg.state = WifiMsg::Failed;
                     strlcpy(msg.ssid, wifi_ssid.c_str(), sizeof(msg.ssid));
-                    xQueueSend(ui_queue, &msg, 0);
+                    xQueueSend(msg_queue, &msg, 0);
                 }
             }
         }
@@ -213,11 +191,11 @@ class WIFI
             xEventGroupSetBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connected));
             xEventGroupClearBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connecting));
 
-            if (ui_queue) {
+            if (msg_queue) {
                 WifiMsg msg{};
                 msg.state = WifiMsg::Connected;
                 strlcpy(msg.ssid, wifi_ssid.c_str(), sizeof(msg.ssid));
-                xQueueSend(ui_queue, &msg, 0);
+                xQueueSend(msg_queue, &msg, 0);
             }
         }
     }
@@ -232,6 +210,9 @@ class WIFI
 
         // Create default event loop
         ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+        // Create queue for WifiMsg -> UI task IPC
+        msg_queue = xQueueCreate(3, sizeof(WifiMsg));
 
         // Create default Wi-Fi interface, depending on the mode
         if(mode == Mode::Station)esp_netif_create_default_wifi_sta();

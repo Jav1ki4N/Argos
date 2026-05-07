@@ -9,7 +9,7 @@
 /* ESP-IDF Components */
 #include "freertos/idf_additions.h"
 
-/* C/C++ Libraries */
+/* Third-party */
 #include <cJSON.h>
 
 /* Global vars */
@@ -18,12 +18,11 @@ static const char* TARGET_URL = "http://10.57.166.84:8080/api/info";
 
 void network_task(void *arg)
 {
-    /* Notify given by UI Task after boot screen is drawn */
+    /* network task will only run after UI task's booting is done */
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
     /* WIFI */
-    QueueHandle_t q = xQueueCreate(3, sizeof(WifiMsg));
-    WIFI::set_ui_queue(q);
+    /* wifi connection message is sent inside the WIFI class */
     WIFI Argos_network(WIFI::Mode::Station, "N3V3RM1ND", "KurtCobain");
 
     /* Client */
