@@ -1,3 +1,4 @@
+# dependencies: psutil, flask
 from   flask import Flask, jsonify
 import psutil
 import platform

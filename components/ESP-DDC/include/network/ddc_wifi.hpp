@@ -61,7 +61,7 @@ class WIFI
 
         // Specific WIFI mode initialization
         // 2026-4-28: ONLY STA MODE IS IMPLEMENTED
-        ESP_LOGI("WIFI", "ESP_WIFI_MODE_STA");
+        ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
         init_core(mode, auth_mode);
     }
 
@@ -101,6 +101,7 @@ class WIFI
     
     std::string wifi_ssid     = "Hermes";
     std::string wifi_password = "Clairvoyance";
+    const char* TAG = "WiFi";
 
     /* FreeRTOS Handles */
     /* - wifi_event_group: handle of current wifi event group */
@@ -158,7 +159,7 @@ class WIFI
 
                 esp_wifi_connect(); // retry to connect
                 wifi_retry_count++; // update retry count
-                ESP_LOGI("WIFI", "Retrying to connect to the AP");
+                ESP_LOGI(TAG, "Retrying to connect to the AP");
 
                 if (msg_queue) {
                     WifiMsg msg{};
@@ -172,7 +173,7 @@ class WIFI
             {
                 xEventGroupSetBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::failed));
                 xEventGroupClearBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connecting));
-                ESP_LOGE("WIFI", "Failed to connect to the AP");
+                ESP_LOGE(TAG, "Failed to connect to the AP");
 
                 if (msg_queue) {
                     WifiMsg msg{};
@@ -186,7 +187,7 @@ class WIFI
         else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
         {
             ip_event_got_ip_t *event = static_cast<ip_event_got_ip_t*>(event_data);
-            ESP_LOGI("WIFI", "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
+            ESP_LOGI(TAG, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
             wifi_retry_count = 0;
             xEventGroupSetBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connected));
             xEventGroupClearBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connecting));
@@ -254,7 +255,7 @@ class WIFI
             ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
             ESP_ERROR_CHECK(esp_wifi_start() );
 
-            ESP_LOGI("WIFI_STA", "wifi_init_sta finished.");
+            ESP_LOGI(TAG, "wifi_init_sta finished.");
         }
 
         EventBits_t bits = xEventGroupWaitBits(wifi_event_group,
@@ -264,13 +265,13 @@ class WIFI
         portMAX_DELAY);
 
         if (bits & static_cast<uint8_t>(WifiEventBits::connected)) {
-            ESP_LOGI("WIFI_STA", "connected to ap SSID:%s password:%s",
+            ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
                  wifi_ssid.c_str(), wifi_password.c_str());
             } 
         else if (bits & static_cast<uint8_t>(WifiEventBits::failed)) {
-            ESP_LOGI("WIFI_STA", "Failed to connect to SSID:%s, password:%s",
+            ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
                  wifi_ssid.c_str(), wifi_password.c_str());
         } 
-        else ESP_LOGE("WIFI_STA", "UNEXPECTED EVENT");
+        else ESP_LOGE(TAG, "UNEXPECTED EVENT");
     }
 };

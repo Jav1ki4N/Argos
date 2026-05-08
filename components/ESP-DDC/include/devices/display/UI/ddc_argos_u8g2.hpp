@@ -8,11 +8,12 @@
 #pragma once
 
 /* Task requirement */
-/* - for receiving queue handle */
+/* - this file runs on a certain project and thus can't function */
+/* - if project tasks are not created */
 #define NETWORK_TASK_ON 1
 #if     NETWORK_TASK_ON
-    #include "../../../../../../main/network.hpp"
-#endif
+#include "../../../../../../main/network.hpp"
+
 
 /* DDC headers */
 /* - same directory */
@@ -81,6 +82,7 @@ static constexpr const uint8_t* BOOT_SCREEN_ICONS[5]     = {icon_argos,
 static constexpr const uint8_t* WIFI_CONNECTING_ICONS[3] = {icon_wifi_1, icon_wifi_2, icon_wifi_3};
 static constexpr       uint16_t WIFI_ANIMATION_INTERVAL = 400;
 
+const char* ArgosUITAG = "Argos";
 
 enum class Direction : uint8_t
 {
@@ -371,7 +373,6 @@ inline void UI_DrawPageWifi(u8g2_t *u8g2, const App_State& state)
             }
         }
         /* page content */
-        //u8g2_DrawStr(u8g2, 9, 24, state.wifi_ssid);
         
     }
 }
@@ -461,3 +462,5 @@ inline void UI_Render(u8g2_t *u8g2, const App_State& state)
 
     u8g2_SendBuffer(u8g2);
 }
+
+#endif

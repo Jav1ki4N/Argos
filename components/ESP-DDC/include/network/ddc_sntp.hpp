@@ -21,7 +21,7 @@
 #include <time.h>
 #include <sys/time.h>
 
-static const char *SNTP_TAG = "SNTP";
+static const char *TAG = "SNTP";
 
 /* Sync system time once, then deinit SNTP.     */
 /* - Returns true on success, false on timeout. */
@@ -42,7 +42,7 @@ inline bool ddc_sntp_sync(const char *server = "pool.ntp.org", // SNTP server
     int retry_count = 0; // current retry count
     while (esp_netif_sntp_sync_wait(timeout_ms / portTICK_PERIOD_MS) == ESP_ERR_TIMEOUT
            && ++retry_count < max_retry_count) {
-        ESP_LOGI(SNTP_TAG, "Waiting for time sync... (%d/%d)", retry_count, max_retry_count);
+        ESP_LOGI(TAG, "Waiting for time sync... (%d/%d)", retry_count, max_retry_count);
     }
 
     /* Request done, deinit SNTP */
@@ -54,10 +54,10 @@ inline bool ddc_sntp_sync(const char *server = "pool.ntp.org", // SNTP server
     tzset();
 
     if (retry_count < max_retry_count) {
-        ESP_LOGI(SNTP_TAG, "Time synced successfully");
+        ESP_LOGI(TAG, "Time synced successfully");
         return true;
     }
 
-    ESP_LOGW(SNTP_TAG, "Time sync timed out");
+    ESP_LOGW(TAG, "Time sync timed out");
     return false;
 }
