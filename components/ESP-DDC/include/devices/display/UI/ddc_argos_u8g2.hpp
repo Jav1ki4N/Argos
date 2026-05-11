@@ -82,8 +82,6 @@ static constexpr const uint8_t* BOOT_SCREEN_ICONS[5]     = {icon_argos,
 static constexpr const uint8_t* WIFI_CONNECTING_ICONS[3] = {icon_wifi_1, icon_wifi_2, icon_wifi_3};
 static constexpr       uint16_t WIFI_ANIMATION_INTERVAL = 400;
 
-const char* ArgosUITAG = "Argos";
-
 enum class Direction : uint8_t
 {
     Left  = 0,
