@@ -37,4 +37,5 @@ InlayHints:
 
 Diagnostics:
   UnusedIncludes: false
+  Suppress: [-Wunused-private-field]
   

@@ -30,3 +30,6 @@
 #include "network/ddc_sntp.hpp"
 #include "network/ddc_http_client.hpp"
 
+/* FileSystem */
+#include "thirdparty/ddc_littlefs.hpp"
+

@@ -5,7 +5,7 @@
 /*     (____)(____/(__)      (____/(____/ \___)      */
 /*===================================================*/
 /*         i4n@2026 | ddc_wifi | 2026-4-26           */
-/*         ESP-IDF Wi-Fi station helper class       */
+/*         ESP-IDF Wi-Fi station helper class        */
 /*===================================================*/
 /* Purpose: Provide startup, NVS init, Wi-Fi station */
 /*          connect/reconnect logic, and event       */
@@ -16,6 +16,7 @@
 /* ESP-IDF Components */
 /* CMakeLists.txt: REQUIRES esp\_wifi FreeRTOS */
 #include "esp_netif_types.h"
+#include "esp_mac.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -40,10 +41,10 @@ class WIFI
         Sniffer         // sniffing Wi-Fi packets
     };
 
-    WIFI(Mode mode, 
-         const std::string& ssid,                         // Route WIFI identfier, ESP32 will looking for this SSID to connect to
-         const std::string& password,                     // Just password
-         wifi_auth_mode_t auth_mode = WIFI_AUTH_WPA2_PSK) // Authentication mode, default is WPA2-PSK, can be set to WPA3 if supported by the AP
+    WIFI(Mode               mode, 
+         const std::string& ssid,                           // to connect in STA, or to create in SoftAP
+         const std::string& password,                       // password
+         wifi_auth_mode_t   auth_mode = WIFI_AUTH_WPA2_PSK) // Authentication mode
     {
         
         // Update Wi-Fi credentials (passed parameters -> private members)
@@ -60,8 +61,24 @@ class WIFI
         ESP_ERROR_CHECK(ret);
 
         // Specific WIFI mode initialization
-        // 2026-4-28: ONLY STA MODE IS IMPLEMENTED
-        ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
+        switch (mode)
+        {
+            case Mode::Station:
+                ESP_LOGI(TAG, "Initializing Wi-Fi in Station mode");
+                break;
+            case Mode::SoftAP:
+                ESP_LOGI(TAG, "Initializing Wi-Fi in SoftAP mode");
+                break;
+            case Mode::StationSoftAP:
+                ESP_LOGI(TAG, "Initializing Wi-Fi in Station+SoftAP mode");
+                break;
+            case Mode::Sniffer:
+                ESP_LOGI(TAG, "Initializing Wi-Fi in Sniffer mode");
+                break;
+            default:
+                ESP_LOGW(TAG, "Unknown Wi-Fi mode, defaulting to Station mode");
+                mode = Mode::Station;
+        }
         init_core(mode, auth_mode);
     }
 
@@ -99,8 +116,10 @@ class WIFI
 
     private:
     
-    std::string wifi_ssid     = "Hermes";
+    /* Default AP ssid & password */
+    std::string wifi_ssid     = "Argos";
     std::string wifi_password = "Clairvoyance";
+    static constexpr uint8_t MAX_STA_CONNECT = 4;
     const char* TAG = "WiFi";
 
     /* FreeRTOS Handles */
@@ -133,8 +152,7 @@ class WIFI
                        int32_t          event_id, 
                        void*            event_data)
     {
-        // WIFI CONNECT =========================================================
-        // if Event is Wi-Fi event and event ID is "start", then connect to Wi-Fi
+        /* Event: STA mode - WIFI start to connect */
         if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
         {
             xEventGroupClearBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connected) | static_cast<uint8_t>(WifiEventBits::failed));
@@ -148,8 +166,7 @@ class WIFI
                 xQueueSend(msg_queue, &msg, 0); // send through the queue via msg_queue
             }
         }
-        // WIFI RECONNECT ===========================================================
-        // if WIFI event's ID is "disconnected", retry to connect
+        /* Event: STA mode - WIFI reconnection & WIFI failed */
         else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
         {
             if (wifi_retry_count < MAX_WIFI_RETRY) // before max allowed retry count
@@ -168,7 +185,6 @@ class WIFI
                     xQueueSend(msg_queue, &msg, 0);
                 }
             }
-            // WIFI FAILED =======================================================================
             else // reach max retry count
             {
                 xEventGroupSetBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::failed));
@@ -183,7 +199,7 @@ class WIFI
                 }
             }
         }
-        // WIFI GOT IP ====================================================
+        // Event: STA mode - WIFI got IP (connected successfully)
         else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
         {
             ip_event_got_ip_t *event = static_cast<ip_event_got_ip_t*>(event_data);
@@ -198,6 +214,20 @@ class WIFI
                 strlcpy(msg.ssid, wifi_ssid.c_str(), sizeof(msg.ssid));
                 xQueueSend(msg_queue, &msg, 0);
             }
+        }
+        // Event: AP mode - a STA connected 
+        else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED)
+        {
+            wifi_event_ap_staconnected_t* event = (wifi_event_ap_staconnected_t*) event_data;
+            ESP_LOGI(TAG, "station " MACSTR " join, AID=%d",
+                     MAC2STR(event->mac), event->aid);
+        }
+        // Event: AP mode - a STA disconnected
+        else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STADISCONNECTED)
+        {
+            wifi_event_ap_stadisconnected_t* event = (wifi_event_ap_stadisconnected_t*) event_data;
+            ESP_LOGI(TAG, "station " MACSTR " leave, AID=%d, reason=%d",
+                     MAC2STR(event->mac), event->aid, event->reason);
         }
     }
 
@@ -217,6 +247,7 @@ class WIFI
 
         // Create default Wi-Fi interface, depending on the mode
         if(mode == Mode::Station)esp_netif_create_default_wifi_sta();
+        else if(mode == Mode::SoftAP)esp_netif_create_default_wifi_ap();
 
         // Init Wi-Fi with default config pre-written by ESP-IDF
         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -240,12 +271,13 @@ class WIFI
                                                             this,
                                                             &instance_got_ip));
 
+        /* Specific Mode Below */
         // Configure Wi-Fi connection settings specific to the mode
         // Notice that this config is not 'wifi_init_config_t' but 'wifi_config_t'
 
-        wifi_config_t wifi_config = {};
         if (mode == Mode::Station)
         {
+            wifi_config_t wifi_config = {};
             strlcpy((char*)wifi_config.sta.ssid, wifi_ssid.c_str(), sizeof(wifi_config.sta.ssid));
             strlcpy((char*)wifi_config.sta.password, wifi_password.c_str(), sizeof(wifi_config.sta.password));
             wifi_config.sta.threshold.authmode = auth_mode; // Set minimum auth mode
@@ -256,22 +288,44 @@ class WIFI
             ESP_ERROR_CHECK(esp_wifi_start() );
 
             ESP_LOGI(TAG, "wifi_init_sta finished.");
+
+            EventBits_t bits = xEventGroupWaitBits(wifi_event_group,
+            static_cast<uint8_t>(WifiEventBits::connected) | static_cast<uint8_t>(WifiEventBits::failed),
+            pdFALSE,
+            pdFALSE,
+            portMAX_DELAY);
+
+            if (bits & static_cast<uint8_t>(WifiEventBits::connected)) {
+                ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
+                     wifi_ssid.c_str(), wifi_password.c_str());
+                }
+            else if (bits & static_cast<uint8_t>(WifiEventBits::failed)) {
+                ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
+                     wifi_ssid.c_str(), wifi_password.c_str());
+            }
+            else ESP_LOGE(TAG, "UNEXPECTED EVENT");
         }
+        /* Mode: SoftAP */
+        else if (mode == Mode::SoftAP)
+        {
+            wifi_config_t wifi_config = {};
+            strlcpy((char*)wifi_config.ap.ssid, wifi_ssid.c_str(), sizeof(wifi_config.ap.ssid));
+            wifi_config.ap.ssid_len = wifi_ssid.length();
+            strlcpy((char*)wifi_config.ap.password, wifi_password.c_str(), sizeof(wifi_config.ap.password));
+            wifi_config.ap.channel = 1;
+            wifi_config.ap.max_connection = MAX_STA_CONNECT;
+            wifi_config.ap.authmode = auth_mode;
+            wifi_config.ap.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
 
-        EventBits_t bits = xEventGroupWaitBits(wifi_event_group,
-        static_cast<uint8_t>(WifiEventBits::connected) | static_cast<uint8_t>(WifiEventBits::failed),
-        pdFALSE,
-        pdFALSE,
-        portMAX_DELAY);
+            if (wifi_password.empty()) {
+                wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+            }
 
-        if (bits & static_cast<uint8_t>(WifiEventBits::connected)) {
-            ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
-                 wifi_ssid.c_str(), wifi_password.c_str());
-            } 
-        else if (bits & static_cast<uint8_t>(WifiEventBits::failed)) {
-            ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
-                 wifi_ssid.c_str(), wifi_password.c_str());
-        } 
-        else ESP_LOGE(TAG, "UNEXPECTED EVENT");
+            ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP) );
+            ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config) );
+            ESP_ERROR_CHECK(esp_wifi_start() );
+
+            ESP_LOGI(TAG, "wifi_init_softap finished.");
+        }
     }
 };

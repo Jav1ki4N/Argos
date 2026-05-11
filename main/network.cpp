@@ -18,6 +18,15 @@ static const char* TARGET_URL = "http://10.57.166.84:8080/api/info";
 
 void network_task(void *arg)
 {
+    /* FileSystem */
+    LFS vault;
+    ESP_LOGI(TAG,"LittleFS mounted at: %s", vault.base());
+
+    /* Create directories */
+    vault.mkdir("/config");
+    vault.mkdir("/config/wifi");
+    vault.mkdir("/config/http");
+
     /* network task will only run after UI task's booting is done */
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 

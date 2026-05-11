@@ -43,7 +43,7 @@ managed_components/
 
 # Do not upload local U8g2 component copy
 /components/u8g2/
-
+/components/esp_littlefs
 /private/
 
 /linux/build/
