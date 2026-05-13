@@ -21,6 +21,7 @@
 #include "ddc_animation.hpp"
 /* - other directories */
 #include "../../../network/ddc_wifi.hpp"
+#include "../../../devices/ddc_encoder.hpp"
 
 /* ESP-IDF Components */
 #include "freertos/idf_additions.h"
@@ -240,7 +241,7 @@ inline void UI_DrawWifiIcon(u8g2_t *u8g2, const uint8_t *icon)
                   icon);
 }
 
-inline void UI_PageTurn(u8g2_t *u8g2, Direction dir, App_State& state)
+inline void UI_PageTurn(Direction dir, App_State& state)
 {
     if(dir == Direction::Left || dir == Direction::Right)
     {
@@ -338,8 +339,6 @@ inline void UI_DrawPageInfo(u8g2_t *u8g2, const App_State& state)
 
 inline void UI_DrawPageWifi(u8g2_t *u8g2, const App_State& state)
 {
-    static bool boot_enter = true;
-
     u8g2_SetFont(u8g2, ARGOS_FONT);
     u8g2_SetDrawColor(u8g2, 1);
     static Animation<3> wifi_connecting_anime;
@@ -360,18 +359,6 @@ inline void UI_DrawPageWifi(u8g2_t *u8g2, const App_State& state)
         {
             UI_DrawWifiIcon(u8g2, icon_wifi_connected);
         }
-        /* on boot page turn, execute once only */
-        if(boot_enter)
-        {
-            static Animation<1> waiting;
-            if (waiting.static_update(1000))
-            {
-                 UI_PageTurn(u8g2, Direction::Left, const_cast<App_State&>(state)); // to Info page
-                 boot_enter = false;
-            }
-        }
-        /* page content */
-        
     }
 }
 
@@ -396,7 +383,7 @@ inline void UI_DrawPage(u8g2_t *u8g2, const App_State& state)
 
 // Drain the WIFI -> UI queue and update cached App_State.
 // Call this once per frame before UI_Render.
-inline void UI_UpdateState(App_State& state, QueueHandle_t client_q)
+inline void UI_UpdateState(App_State& state, QueueHandle_t client_q, QueueHandle_t input_q)
 {
     QueueHandle_t q = WIFI::get_MsgQueue();
     if (!q) return;
@@ -440,6 +427,34 @@ inline void UI_UpdateState(App_State& state, QueueHandle_t client_q)
             state.disk_total    = cmsg.disk_total;
             state.disk_used     = cmsg.disk_used;
             state.disk_usage    = cmsg.disk_usage;
+        }
+    }
+
+    /* Get Input */
+    if (input_q)
+    {
+        Encoder::EncoderMsg msg;
+        while (xQueueReceive(input_q, &msg, 0) == pdTRUE)
+        {
+            switch (msg)
+            {
+                case Encoder::EncoderMsg::ButtonPressed:
+                    // Handle button press
+                    break;
+                case Encoder::EncoderMsg::ButtonHeld:
+                    // Handle button hold
+                    break;
+                case Encoder::EncoderMsg::RotateRight:
+                    // Handle rotation right
+                    UI_PageTurn(Direction::Right, state);
+                    break;
+                case Encoder::EncoderMsg::RotateLeft:
+                    // Handle rotation left
+                    UI_PageTurn(Direction::Left, state);
+                    break;
+                default:
+                    break;
+            }
         }
     }
 }

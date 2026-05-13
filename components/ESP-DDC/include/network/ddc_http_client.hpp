@@ -13,7 +13,7 @@
 /* - return response body got from http server*/
 
 /* ESP-LOG */
-static const char *HTTP_TAG = "HTTP";
+static const char *HTTP_TAG = "HTTP_CLIENT";
 
 /* Persistent client */
 class HttpClient

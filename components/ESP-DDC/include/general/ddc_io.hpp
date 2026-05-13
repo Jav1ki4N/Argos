@@ -23,12 +23,14 @@ class Pin
 {
     public:
     /* Constructor */
-    Pin(gpio_num_t pin_num, gpio_mode_t mode)
+    Pin(gpio_num_t pin_num, gpio_mode_t mode, gpio_pull_mode_t pull = GPIO_FLOATING)
     : _pin_num(pin_num)
     {
         esp_err_t ret = gpio_reset_pin(pin_num);
         assert(ret == ESP_OK);
         ret = gpio_set_direction(pin_num, mode);
+        assert(ret == ESP_OK);
+        ret = gpio_set_pull_mode(pin_num, pull);
         assert(ret == ESP_OK);
     }
     ~Pin()
@@ -55,6 +57,11 @@ class Pin
     gpio_num_t get_pin_num() const
     {
         return _pin_num;
+    }
+
+    bool read() const
+    {
+        return gpio_get_level(_pin_num);
     }
 
      /* Destructor  */

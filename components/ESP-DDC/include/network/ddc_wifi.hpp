@@ -203,7 +203,7 @@ class WIFI
         else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
         {
             ip_event_got_ip_t *event = static_cast<ip_event_got_ip_t*>(event_data);
-            ESP_LOGI(TAG, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
+            //ESP_LOGI(TAG, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
             wifi_retry_count = 0;
             xEventGroupSetBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connected));
             xEventGroupClearBits(wifi_event_group, static_cast<uint8_t>(WifiEventBits::connecting));
@@ -219,15 +219,15 @@ class WIFI
         else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED)
         {
             wifi_event_ap_staconnected_t* event = (wifi_event_ap_staconnected_t*) event_data;
-            ESP_LOGI(TAG, "station " MACSTR " join, AID=%d",
-                     MAC2STR(event->mac), event->aid);
+            //ESP_LOGI(TAG, "station " MACSTR " join, AID=%d",
+                     //MAC2STR(event->mac), event->aid);
         }
         // Event: AP mode - a STA disconnected
         else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STADISCONNECTED)
         {
             wifi_event_ap_stadisconnected_t* event = (wifi_event_ap_stadisconnected_t*) event_data;
-            ESP_LOGI(TAG, "station " MACSTR " leave, AID=%d, reason=%d",
-                     MAC2STR(event->mac), event->aid, event->reason);
+            //ESP_LOGI(TAG, "station " MACSTR " leave, AID=%d, reason=%d",
+                     //MAC2STR(event->mac), event->aid, event->reason);
         }
     }
 

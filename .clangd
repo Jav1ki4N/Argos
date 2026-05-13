@@ -15,6 +15,7 @@ CompileFlags:
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_driver_gpio/include
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_driver_i2c/include
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_driver_spi/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_driver_pcnt/include
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_common/include
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_hw_support/include
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/soc/include
@@ -30,6 +31,8 @@ CompileFlags:
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/freertos/esp_additions/include
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_timer/include
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_http_client/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_http_server/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/http_parser
 
 
 InlayHints:

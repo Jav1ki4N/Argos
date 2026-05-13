@@ -63,9 +63,9 @@ class SPI
     static inline const spi_bus_config_t DEFAULT_BUS_CONFIG = []
     {
         spi_bus_config_t config = {};
-        config.mosi_io_num     = 7;
-        config.miso_io_num     = 9;
-        config.sclk_io_num     = 8;
+        config.mosi_io_num     = 6;
+        config.miso_io_num     = 8;
+        config.sclk_io_num     = 7;
         config.quadwp_io_num   = -1;
         config.quadhd_io_num   = -1;
         config.max_transfer_sz = 4096;
