@@ -8,18 +8,17 @@
 
 **Argos** (*Ἄργος*) is a system monitor that displays host system information on an ESP32-driven OLED screen:
 
-- Host name
-- CPU Core / Thread count, frequency, temperature, and usage
-- Memory total, used, and usage percentage
-- Disk total, used, and usage percentage
-- Operating System type
-- Local time (NTP-synced)
+- Host machine's name
+- CPU Info: Core Freq / Temp / Threads
+- Memory Info: Total / Used / Usage Percentage
+- Disk Info: Total / Used / Usage Percentage
+- OS: Type / Distro & Version
+- Time: UTC / Local
 
-![](https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/Argos.jpg)
-
-![](https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/argos_example.gif)
-
-![](https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/Top.png)
+<div align="center">
+  <img src="https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/Argos.jpg" width="600">
+  <img src="https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/argos_example.gif" width="600">
+</div>
 
 ----
 
@@ -70,7 +69,11 @@ Use `idf.py monitor` to view ESP32 logs if the display doesn't update.
 
 ----
 
-## Hardware
+## PCB
+
+![]("https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/argos_top.png")
+
+![]("https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/argos_bottom.png")
 
 - **MCU**: ESP32-C3 Supermini
 - **Display**: SSD1322 OLED, 256×64, SPI interface

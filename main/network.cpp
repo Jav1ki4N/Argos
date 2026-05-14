@@ -32,7 +32,7 @@ void network_task(void *arg)
 
     /* WIFI */
     /* wifi connection message is sent inside the WIFI class */
-    WIFI Argos_network(WIFI::Mode::Station, "N3V3RM1ND", "KurtCobain");
+    WIFI Argos_network(WIFI::Mode::SoftAP);
 
     /* Client */
     client_q = xQueueCreate(3, sizeof(ClientMsg));

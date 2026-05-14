@@ -102,7 +102,24 @@ enum class Page : uint8_t
 struct App_State
 {
     /* state control vars */
-    int current_page_index = 1; // default to network page cuz I made an animation for it 
+    int current_page_index = 1; // default to network page cuz I made an animation for it
+    enum class ActPage : uint8_t
+    {
+        Info    =    0,
+        Network =    1,
+        About   =    2,
+        None    =    3   
+    }activated_page[4] = {ActPage::Info, ActPage::Network, ActPage::About, ActPage::None}; // in-page state, can be used to control in-page animation or effects
+    
+    ActPage current_activated_page = ActPage::None;
+
+    enum class EncoderBehavior : uint8_t
+    {
+        Browse = 0,
+        Scroll = 1
+    }encoder_behavior = EncoderBehavior::Browse;
+
+     /* WIFI Info */
 
     /* WIFI Info */
     WIFI::WifiMsg::State wifi_state = WIFI::WifiMsg::Connecting; // in-class wifi state is defined as bits
@@ -440,9 +457,14 @@ inline void UI_UpdateState(App_State& state, QueueHandle_t client_q, QueueHandle
             {
                 case Encoder::EncoderMsg::ButtonPressed:
                     // Handle button press
+                    state.current_activated_page = state.activated_page[state.current_page_index];
+                    state.encoder_behavior = App_State::EncoderBehavior::Scroll; 
+                    ESP_LOGI("UI", "%s", (state.encoder_behavior == App_State::EncoderBehavior::Scroll) ? "Scroll Mode" : "Browse Mode");
                     break;
                 case Encoder::EncoderMsg::ButtonHeld:
-                    // Handle button hold
+                    state.current_activated_page = App_State::ActPage::None;
+                    state.encoder_behavior = App_State::EncoderBehavior::Browse;
+                    ESP_LOGI("UI", "%s", (state.encoder_behavior == App_State::EncoderBehavior::Scroll) ? "Scroll Mode" : "Browse Mode");
                     break;
                 case Encoder::EncoderMsg::RotateRight:
                     // Handle rotation right

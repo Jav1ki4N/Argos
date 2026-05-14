@@ -42,8 +42,8 @@ class WIFI
     };
 
     WIFI(Mode               mode, 
-         const std::string& ssid,                           // to connect in STA, or to create in SoftAP
-         const std::string& password,                       // password
+         const std::string& ssid = "Argos",                           // to connect in STA, or to create in SoftAP
+         const std::string& password = "Clairvoyance",                       // password
          wifi_auth_mode_t   auth_mode = WIFI_AUTH_WPA2_PSK) // Authentication mode
     {
         
