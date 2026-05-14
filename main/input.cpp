@@ -11,17 +11,12 @@ void Input_Task(void *arg)
 {
     // A, B, Button
     Encoder encoder(GPIO_NUM_1, GPIO_NUM_2, GPIO_NUM_10);
-
-    input_q = xQueueCreate(5, sizeof(Encoder::EncoderMsg));
-
+    input_q = encoder.GetQueue(); // queue send is done inside the class
+                                  // but ui task still needs a exposed handler to receive messages
     for(;;)
     {
         encoder.Botton_Detection();
-        encoder.Rotation_Detection();
-
-        Encoder::EncoderMsg msg = encoder.GetMsg();
-        xQueueSend(input_q, &msg, 0);
-
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+        // encoder.Rotation_Detection(); 
+        vTaskDelay(pdMS_TO_TICKS(10)); 
     }
 }; 
