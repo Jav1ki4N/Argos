@@ -5,6 +5,7 @@
 /* DDC headers */
 #include "ddc.hpp"
 #include "network/ddc_http_client.hpp"
+#include "network/ddc_dns_server.hpp"
 
 /* ESP-IDF Components */
 #include "freertos/idf_additions.h"
@@ -33,6 +34,10 @@ void network_task(void *arg)
     /* WIFI */
     /* wifi connection message is sent inside the WIFI class */
     WIFI Argos_network(WIFI::Mode::SoftAP);
+
+    /* DNS Server — Captive Portal 核心：劫持所有 A 记录到 AP IP */
+    DNServer dns;
+    dns.start();
 
     /* Client */
     client_q = xQueueCreate(3, sizeof(ClientMsg));

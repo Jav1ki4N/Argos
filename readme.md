@@ -71,13 +71,13 @@ Use `idf.py monitor` to view ESP32 logs if the display doesn't update.
 
 ## PCB
 
+### Prototype
+
 ![]("https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/argos_top.png")
 
 ![]("https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/argos_bottom.png")
 
-- **MCU**: ESP32-C3 Supermini
-- **Display**: SSD1322 OLED, 256×64, SPI interface
-- 
+
 ----
 
 ## TODO
