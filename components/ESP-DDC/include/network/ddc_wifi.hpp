@@ -42,8 +42,8 @@ class WIFI
     };
 
     WIFI(Mode               mode, 
-         const std::string& ssid = "Argos",                           // to connect in STA, or to create in SoftAP
-         const std::string& password = "Clairvoyance",                       // password
+         const std::string& ssid,                           // to connect in STA, or to create in SoftAP
+         const std::string& password,                       // password
          wifi_auth_mode_t   auth_mode = WIFI_AUTH_WPA2_PSK) // Authentication mode
     {
         
@@ -112,6 +112,69 @@ class WIFI
     static QueueHandle_t get_MsgQueue()
     {
         return msg_queue;
+    }
+
+    void restart(
+         Mode mode,
+         const std::string& ssid,
+         const std::string& password,
+         wifi_auth_mode_t auth_mode = WIFI_AUTH_WPA2_PSK
+    )
+    {
+        esp_wifi_stop();
+        wifi_retry_count = 0;
+        xEventGroupClearBits(wifi_event_group, 
+                             static_cast<uint8_t>(WifiEventBits::connected) | 
+                             static_cast<uint8_t>(WifiEventBits::failed) |
+                             static_cast<uint8_t>(WifiEventBits::connecting));
+        wifi_ssid = ssid;
+        wifi_password = password;
+        // should not call init_core() as it will re-register event handlers and cause issues
+        
+        wifi_mode_t curr_mode; 
+        if(esp_wifi_get_mode(&curr_mode)==ESP_OK)
+        {
+            if(mode == Mode::Station && curr_mode == WIFI_MODE_AP)
+            {
+                if (esp_netif_get_handle_from_ifkey("WIFI_STA_DEF") == nullptr)
+                    esp_netif_create_default_wifi_sta();
+            }
+            else if(mode == Mode::SoftAP && curr_mode == WIFI_MODE_STA)
+            {
+                if (esp_netif_get_handle_from_ifkey("WIFI_AP_DEF") == nullptr)
+                    esp_netif_create_default_wifi_ap();
+            }
+        }
+        else
+        {
+            ESP_LOGE(TAG, "Failed to get current Wi-Fi mode");
+        }
+
+        if(mode == Mode::Station)
+        {
+            wifi_config_t wifi_config = {};
+            strlcpy((char*)wifi_config.sta.ssid, wifi_ssid.c_str(), sizeof(wifi_config.sta.ssid));
+            strlcpy((char*)wifi_config.sta.password, wifi_password.c_str(), sizeof(wifi_config.sta.password));
+            wifi_config.sta.threshold.authmode = auth_mode;
+            wifi_config.sta.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
+        
+            ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+            ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+        }
+        else if(mode == Mode::SoftAP)
+        {
+            wifi_config_t wifi_config = {};
+            strlcpy((char*)wifi_config.ap.ssid, wifi_ssid.c_str(), sizeof(wifi_config.ap.ssid));
+            wifi_config.ap.ssid_len = wifi_ssid.length();
+            strlcpy((char*)wifi_config.ap.password, wifi_password.c_str(), sizeof(wifi_config.ap.password));
+            wifi_config.ap.channel = 1;
+            wifi_config.ap.max_connection = MAX_STA_CONNECT;
+            wifi_config.ap.authmode = wifi_password.empty() ? WIFI_AUTH_OPEN : auth_mode;
+        
+            ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+            ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
+        }
+        ESP_ERROR_CHECK(esp_wifi_start());
     }
 
     private:

@@ -10,7 +10,7 @@ static const std::string CAPTIVE_PORTAL_HTML = R"raw(<!DOCTYPE html>
     <style>
       body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        background-color: #f4f4f9; 
+        background-color: #f4f4f9;
         color: #333;
         margin: 0;
         padding: 0;
@@ -22,10 +22,10 @@ static const std::string CAPTIVE_PORTAL_HTML = R"raw(<!DOCTYPE html>
       .container {
         background: #ffffff;
         width: 85%;
-        max-width: 400px; 
+        max-width: 400px;
         padding: 2rem 1.5rem;
         border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
         box-sizing: border-box;
       }
       h1 {
@@ -50,7 +50,7 @@ static const std::string CAPTIVE_PORTAL_HTML = R"raw(<!DOCTYPE html>
         padding: 0.85rem;
         border: 1px solid #ddd;
         border-radius: 8px;
-        font-size: 1rem; 
+        font-size: 1rem;
         box-sizing: border-box;
         background-color: #fafafa;
         transition: border-color 0.2s;
@@ -83,27 +83,90 @@ static const std::string CAPTIVE_PORTAL_HTML = R"raw(<!DOCTYPE html>
         font-size: 0.8rem;
         color: #aaa;
       }
+      .msg {
+        display: none;
+        text-align: center;
+        padding: 0.8rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        font-weight: 600;
+      }
+      .msg.success { background: #d4edda; color: #155724; }
+      .msg.error   { background: #f8d7da; color: #721c24; }
     </style>
   </head>
   <body>
     <div class="container">
       <h1>Argos Configuration</h1>
-      <form>
+
+      <div id="msg" class="msg"></div>
+
+      <form id="config-form" method="POST" action="/save">
         <div class="form-group">
           <label for="ssid">WiFi Name (SSID)</label>
-          <input type="text" id="ssid" placeholder="Enter the router name" required>
+          <input type="text" id="ssid" name="ssid" placeholder="Enter the router name" required>
         </div>
         <div class="form-group">
           <label for="password">WiFi Password</label>
-          <input type="password" id="password" placeholder="Enter the WiFi password (if any)">
+          <input type="password" id="password" name="password" placeholder="Enter the WiFi password (if any)">
         </div>
         <div class="form-group">
-          <label for="target_ip">Target PC's IP Address</label>
-          <input type="text" id="target_ip" placeholder="e.g.: 192.168.1.100" required>
+          <label for="profile_name">Profile Name</label>
+          <input type="text" id="profile_name" name="profile_name" placeholder="Default: same as SSID">
         </div>
-        <button type="button" onclick="alert('Hello, World!')">Save and Connect</button>
+        <button type="submit">Save and Connect</button>
       </form>
-      <div class="footer">Argos ESP32 Captive Portal</div>
+      <div class="footer">Argos by i4N</div>
     </div>
+
+    <script>
+      var ssidEl = document.getElementById('ssid');
+      var profEl = document.getElementById('profile_name');
+      var formEl = document.getElementById('config-form');
+      var msgEl  = document.getElementById('msg');
+
+      // Auto-fill profile_name from SSID (until user edits it manually)
+      var lastAuto = '';
+      ssidEl.addEventListener('input', function() {
+        if (profEl.value === '' || profEl.value === lastAuto) {
+          profEl.value = ssidEl.value;
+          lastAuto = ssidEl.value;
+        }
+      });
+      profEl.addEventListener('input', function() {
+        lastAuto = profEl.value;
+      });
+
+      // Submit via fetch, avoid page navigation
+      formEl.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        var body = 'ssid=' + encodeURIComponent(ssidEl.value)
+                 + '&password=' + encodeURIComponent(document.getElementById('password').value)
+                 + '&profile_name=' + encodeURIComponent(profEl.value || ssidEl.value);
+
+        showMsg('Connecting, please wait ...', 'success');
+
+        fetch('/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body
+        })
+        .then(function(r) { return r.text(); })
+        .then(function() {
+          showMsg('Saved! Argos is now connecting to ' + ssidEl.value
+                  + '. You may close this page.', 'success');
+        })
+        .catch(function() {
+          showMsg('Failed to save. Please try again.', 'error');
+        });
+      });
+
+      function showMsg(text, cls) {
+        msgEl.textContent = text;
+        msgEl.className = 'msg ' + cls;
+        msgEl.style.display = 'block';
+      }
+    </script>
   </body>
 </html>)raw";

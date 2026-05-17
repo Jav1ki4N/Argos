@@ -10,6 +10,7 @@
 /* C/C++ Libraries */
 #include <cstring>
 #include <string>
+#include <vector>
 
 class HttpServer
 {
@@ -66,6 +67,9 @@ public:
                 generate_204.user_ctx = this;
                 httpd_register_uri_handler(server, &generate_204);
             }
+            /* Register pending custom URI handlers */
+            for (auto& h : _uri_handlers)
+                httpd_register_uri_handler(server, &h);
         }
     };
     void stop();
@@ -82,7 +86,34 @@ public:
         std::string path = std::string("/web/") + filename;
         return _lfs->write(path.c_str(), data, len);
     }
-      static constexpr const char* ROOT_NAME = "root.html"; 
+    
+    //  Func   registerURI
+    /// @brief  Register a custom URI handler.
+    /// @param  uri the URI path, e.g. /save
+    /// @param  method the HTTP method
+    /// @param  handler the handler function
+    /// @param  user_ctx the user context to pass to the handler
+    /// @note   May be called before or after start(). Pending handlers are
+    ///         registered when start() is called.
+    esp_err_t registerURI(const char* uri, 
+                          httpd_method_t method,
+                          esp_err_t (*handler)(httpd_req_t*), 
+                          void* user_ctx = nullptr)
+    {
+        httpd_uri_t h = {};
+        h.uri      = uri;
+        h.method   = method;
+        h.handler  = handler;
+        h.user_ctx = user_ctx;
+        _uri_handlers.push_back(h);
+
+        if (server != nullptr)
+            return httpd_register_uri_handler(server, &_uri_handlers.back());
+        return ESP_OK;
+    }
+
+    static constexpr const char* ROOT_NAME = "root.html";
+
 private:
     static constexpr const char *TAG = "HTTP_SERVER";
     static constexpr const httpd_config_t DEFAULT_CONFIG = HTTPD_DEFAULT_CONFIG();
@@ -94,8 +125,15 @@ private:
     FileSys _fs;
     LFS* _lfs;
     httpd_handle_t server = nullptr;
+
+    //  Var HTTP URIs
+    /// @brief in class URI and custom URI
+    /// @param root the root page, accessed by GET
+    /// @param _uri_handlers vector of custom URI handlers registered by the user 
+    std::vector<httpd_uri_t> _uri_handlers;
     httpd_uri_t root;
     httpd_uri_t generate_204; // for Android captive portal detection
+    
     inline static HttpServer* _instance = nullptr;
 
     httpd_config_t Make_CPConfig()
@@ -105,7 +143,11 @@ private:
         CPConfig.lru_purge_enable = true;
         return CPConfig;
     }
-
+   
+    //  Func   root_get_handler
+    /// @brief If a GET request is made to the root URL this func will be called
+    /// @note  This is the non-static version handler which is not directly called
+    ///        because a C library can't tell the exact instance to call
     esp_err_t root_get_handler(httpd_req_t *req)
     {
         /* [1] Get HTML content from source */
@@ -150,12 +192,18 @@ private:
         return ESP_OK;
     }
 
+    //  Func   root_get_handler
+    /// @brief static version of root_get_handler
+    /// @note  This is the static version handler which is directly called by the C library
     static esp_err_t static_root_get_handler(httpd_req_t *req)
     {
         HttpServer* server_instance = reinterpret_cast<HttpServer*>(req->user_ctx);
         return server_instance->root_get_handler(req);
     }
 
+    //  Func   http_404_error_handler
+    /// @brief If GET request is made to a URL that doesn't exist, this func will be called
+    /// @note  For captive portal mode, redirect to root URL to serve the captive portal
     esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
     {
         if(_mode == Mode::CaptivePortal)
@@ -173,6 +221,8 @@ private:
         return ESP_OK;
     }
 
+    //  Func   static_http_404_error_handler
+    /// @brief Static version of http_404_error_handler
     static esp_err_t static_http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
     {
         HttpServer* server_instance = reinterpret_cast<HttpServer*>(_instance);

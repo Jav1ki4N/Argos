@@ -19,6 +19,9 @@
 #include "general/ddc_spi.hpp"
 #include "general/ddc_spi_device.hpp"
 
+/* FileSystem (must come before UI — ddc_argos_u8g2.hpp includes network.hpp which needs LFS) */
+#include "thirdparty/ddc_littlefs.hpp"
+
 /* Devices */
 #include "devices/display/ddc_ssd1322_u8g2.hpp"
 #include "devices/ddc_encoder.hpp"
@@ -32,7 +35,4 @@
 #include "network/ddc_http_client.hpp"
 #include "network/ddc_http_server.hpp"
 #include "network/ddc_dns_server.hpp"
-
-/* FileSystem */
-#include "thirdparty/ddc_littlefs.hpp"
 

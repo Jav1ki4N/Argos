@@ -11,12 +11,50 @@
 /* ESP-IDF Components */
 #include "freertos/idf_additions.h"
 
+/* C/C++ */
+
 /* Third-party */
 #include <cJSON.h>
 
 /* Global vars */
 QueueHandle_t client_q = nullptr; // need to be accessed in UI Task
 static const char* TARGET_URL = "http://10.57.166.84:8080/api/info";
+static SemaphoreHandle_t isProfileLoaded = nullptr;
+struct OnSaveHandlerCTX
+{
+    LFS* lfs;
+};
+
+esp_err_t http_on_save_handler(httpd_req_t *req)
+{
+    auto *ctx = reinterpret_cast<OnSaveHandlerCTX*>(req->user_ctx);
+    LFS* lfs = ctx->lfs;
+
+    char buf[256];
+    int ret = httpd_req_recv(req, buf, req->content_len);
+    if (ret <= 0) return ESP_FAIL;
+    buf[ret] = '\0';
+
+    char ssid[64] = {0};
+    char password[64] = {0};
+    char profile_name[64] = {0};
+
+    httpd_query_key_value(buf, "ssid", ssid, sizeof(ssid));
+    httpd_query_key_value(buf, "password", password, sizeof(password));
+    httpd_query_key_value(buf, "profile_name", profile_name, sizeof(profile_name));
+
+    ESP_LOGI("APP", "Captive portal received SSID: %s", ssid);
+
+    Profile p = {};
+    strlcpy(p.ssid,         ssid,         sizeof(p.ssid));
+    strlcpy(p.password,     password,     sizeof(p.password));
+    strlcpy(p.profile_name, profile_name, sizeof(p.profile_name));
+    lfs->write("/profile", &p, sizeof(p));
+
+    httpd_resp_send(req, "Config received", HTTPD_RESP_USE_STRLEN);
+    xSemaphoreGive(isProfileLoaded); 
+    return ESP_OK;
+}
 
 void network_task(void *arg)
 {
@@ -28,10 +66,10 @@ void network_task(void *arg)
 
     /* Create directories */
     // do nothing if already exists
-    vault.mkdir("/config");
-    vault.mkdir("/config/wifi");
-    vault.mkdir("/config/http");
-    vault.mkdir("/web");
+    // vault.mkdir("/config");
+    // vault.mkdir("/config/wifi");
+    // vault.mkdir("/config/http");
+    vault.mkdir("/web"); // where the root page will be stored
 
     /* Clean up stale files from previous runs (if any) */
     vault.remove("/test.txt");
@@ -62,7 +100,9 @@ void network_task(void *arg)
     //  Obj    WiFi
     /// @brief Set up the ESP32 as a WiFi Access Point for the Captive Portal
     /// @note  Initialized as SoftAP and will switch to STA after configuration
-    WIFI Argos_network(WIFI::Mode::SoftAP);
+    WIFI Argos_network(WIFI::Mode::SoftAP,
+                       "Argos", 
+                       "Clairvoyance");
 
     //  Obj    DNS Server for Configuration Captive Portal
     /// @brief Redirect any DNS query to ESP32's AP IP
@@ -80,17 +120,53 @@ void network_task(void *arg)
     Argos_server.saveWeb(HttpServer::ROOT_NAME,        // Captive Portal HTML as root
                          CAPTIVE_PORTAL_HTML.c_str(),  // Captive Portal content
                          CAPTIVE_PORTAL_HTML.length());
+
+    // Register custom URI handlers for urls other than root
+    // on click "Save" in capative portal, a POST request willbe sent to '/save'
+    OnSaveHandlerCTX save_ctx = { .lfs = &vault };
+    Argos_server.registerURI("/save", HTTP_POST, http_on_save_handler, &save_ctx);
+
     // Start HTTP server to serve captive portal                     
     Argos_server.start();   
+    
+    // Read profile from LittleFS and build target URL
+    Profile p;
+    
+    ESP_LOGI("Argos", "Waiting for profile to be loaded...");
+    isProfileLoaded = xSemaphoreCreateBinary();
+    xSemaphoreTake(isProfileLoaded, portMAX_DELAY);
+    ESP_LOGI("Argos","Profile loaded");
+    // release semaphore
+    xSemaphoreGive(isProfileLoaded);
 
+    FILE* f = vault.read("/profile");
+    if(f)
+    {
+        fread(&p, sizeof(p), 1, f);
+        fclose(f);
+        ESP_LOGI("Argos", "Read profile - SSID: %s, Password: %s, Profile Name: %s", p.ssid, p.password, p.profile_name);
+    }
+    else
+    {
+        ESP_LOGW("Argos", "No profile found in LittleFS");
+    }
+
+    std::string target_url = "http://" + std::string(p.profile_name) + ".local:8080/api/info";
+    
+    // Switch ESP32 to STA and connect to the target WIFI
+    // Default using profile under /profile
+    ESP_LOGI("Argos", "Connecting to WiFi SSID: %s", p.ssid); 
+    Argos_network.restart(WIFI::Mode::Station, 
+                          p.ssid, 
+                          p.password);
     // //  Obj    HTTP Client
     // /// @brief HTTP client to fetch system info from PC
     // HttpClient Argos_client(TARGET_URL);
     // client_q = xQueueCreate(3, sizeof(ClientMsg));
 
-    // /* SNTP Time Sync */
-    // if (ddc_sntp_sync()) ESP_LOGI("SNTP", "Time sync successful");
-    // else                 ESP_LOGW("SNTP", "Time sync failed");
+    /* SNTP Time Sync */
+    if (ddc_sntp_sync()) ESP_LOGI("SNTP", "Time sync successful");
+    else                 ESP_LOGW("SNTP", "Time sync failed");
 
 
     for(;;)
@@ -204,3 +280,5 @@ void network_task(void *arg)
         vTaskDelay(1000 / portTICK_PERIOD_MS); // client send GET request every 1sec
     }
 }
+
+

@@ -3,6 +3,8 @@
 /* ESP-IDF Components */
 #include "freertos/idf_additions.h"
 
+class LFS;
+
 extern QueueHandle_t client_q;
 
 struct ClientMsg
@@ -24,6 +26,13 @@ struct ClientMsg
     int   disk_total    = 0;
     int   disk_used     = 0;
     float disk_usage    = 0.0f;
+};
+
+struct Profile
+{
+    char ssid[32]          = {};
+    char password[64]      = {};
+    char profile_name[16]  = {};
 };
 
 void network_task(void *arg);
