@@ -165,8 +165,8 @@ void network_task(void *arg)
     // client_q = xQueueCreate(3, sizeof(ClientMsg));
 
     /* SNTP Time Sync */
-    if (ddc_sntp_sync()) ESP_LOGI("SNTP", "Time sync successful");
-    else                 ESP_LOGW("SNTP", "Time sync failed");
+    if (ddc_sntp_sync("cn.pool.ntp.org")) ESP_LOGI("SNTP", "Time sync successful");
+    else                                  ESP_LOGW("SNTP", "Time sync failed");
 
 
     for(;;)

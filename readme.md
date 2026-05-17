@@ -20,7 +20,7 @@
   <img src="https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/argos_example.gif" width="600">
 </div>
 
-----
+
 
 ## How it works
 
@@ -30,7 +30,7 @@ Argos has two components:
 
 2. **An ESP32 device** — connects to the same Wi-Fi network, polls the agent's `/api/info` endpoint every second, parses the JSON response, and renders the data on the OLED display.
 
-----
+
 
 ## Deployment
 
@@ -62,7 +62,7 @@ After that, ESP32 will switch to `STA` mode and locate the target device's ip vi
 
 By sending `GET`, the system info will be as sent back as `.json` and ESP32 will start to parse it and fill a information structure.
 
-----
+
 
 ## PCB
 
@@ -109,7 +109,7 @@ The prototype version of this project and only used for testment. Some issues ar
 <div align="center">
 <p style="font-style: italic;">BOM</p>
 </div>
-----
+
 
 ## TODO
 
@@ -119,7 +119,8 @@ The prototype version of this project and only used for testment. Some issues ar
 - [x] Write a driver for encoder
 - [x] Implant LittleFS as file system
 - [x] Redirect to a captive portal on AP mode
-- [ ] Get configuration profile from captive portal
+- [x] Get configuration profile from captive portal & Connect to target Wi-Fi
+- [ ] Support multiple profiles
 - [ ] Use mDNS to auto-get target device's ip
 - [ ] Battey detection via ADC
 - [ ] ...
