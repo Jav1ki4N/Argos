@@ -30,6 +30,8 @@
 #include "network/ddc_wifi.hpp"
 #include "network/ddc_sntp.hpp"
 #include "network/ddc_http_client.hpp"
+#include "network/ddc_http_server.hpp"
+#include "network/ddc_dns_server.hpp"
 
 /* FileSystem */
 #include "thirdparty/ddc_littlefs.hpp"

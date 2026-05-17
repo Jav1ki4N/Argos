@@ -26,16 +26,31 @@ public:
     DNServer() = default;
     ~DNServer() = default;
 
-    void start()
+    // void start()
+    // {
+    //     isRunning = true;
+    //     xTaskCreate([](void* arg) {
+    //         static_cast<DNServer*>(arg)->run();
+    //         vTaskDelete(nullptr);
+    //     }, "dns_server", 4096, this, 5, &dns_task_handle);
+    // }
+
+    //  Func    Start_CP  
+    /// @brief  Start the DNS server task for the Captive Portal
+    /// @note   Creates a FreeRTOS task that listens on port 53 and runs the Run_CP loop
+    void Start_CP()
     {
         isRunning = true;
         xTaskCreate([](void* arg) {
-            static_cast<DNServer*>(arg)->run();
+            static_cast<DNServer*>(arg)->Run_CP();
             vTaskDelete(nullptr);
         }, "dns_server", 4096, this, 5, &dns_task_handle);
     }
 
-    void stop()
+    //  Func    Stop  
+    /// @brief  Stop the currently running DNS server task
+    /// @note   Sets the running flag to false and deletes the FreeRTOS task
+    void Stop()
     {
         isRunning = false;
         if (dns_task_handle) {
@@ -89,7 +104,15 @@ private:
 
     std::vector<uint8_t> response_packet_buffer;
 
-    std::pair<std::string, uint8_t*> ParseName(uint8_t* raw)
+    //  Func    Parse_DomainName  
+    /// @brief  Parse raw domain name from DNS question section into readable format,
+    ///         return pointer to type & class in the question section.
+    /// @note   Raw domain name format: [3]www[6]google[3]com[0]
+    ///         Parsed domain name format: www.google.com
+    /// @param  raw - pointer to raw domain name in question section of a DNS request packet
+    /// @retval pair of <parsed domain name, pointer to next question type & class in question section>
+    
+    std::pair<std::string, uint8_t*> Parse_DomainName(uint8_t* raw)
     {
         std::string parsed;
         while (*raw != 0) {
@@ -98,11 +121,17 @@ private:
             parsed.push_back('.');
             raw += len;
         }
-        if (!parsed.empty()) parsed.pop_back();
+        if (!parsed.empty()) parsed.pop_back(); // remove trailing dot
         return {parsed, raw + 1}; 
     }
 
-    /* Response Packet Builder  - Captive Portal Version */
+    //  Func    BuildResponse_CP  
+    /// @brief  Parse the incoming DNS request and build a Captive Portal DNS response
+    /// @note   Intercepts all A record queries and injects the SoftAP's IP address
+    /// @param  packet - pointer to the raw incoming DNS request packet
+    /// @param  packet_len - length of the incoming request packet
+    /// @param  max_response_len - maximum allowed length for the response packet
+    /// @retval length of the generated response packet, or -1 on error
     int BuildResponse_CP(const uint8_t* packet,
                       size_t         packet_len,
                       size_t         max_response_len)
@@ -148,7 +177,7 @@ private:
                     question_index < qd_count;
                     question_index++)
         {
-            auto [name, next_ptr] = ParseName(curr_question);
+            auto [name, next_ptr] = Parse_DomainName(curr_question);
             DNSQuestion_t* question = reinterpret_cast<DNSQuestion_t*>(next_ptr);
             uint16_t q_type  = ntohs(question->type);      // question type
             uint16_t q_class = ntohs(question->dns_class);
@@ -177,7 +206,10 @@ private:
         return response_len;
     }
 
-    void run()
+    //  Func    Run_CP  
+    /// @brief  The main loop of the DNS server task for Captive Portal
+    /// @note   Continuously listens for UDP packets on port 53 and replies to them
+    void Run_CP()
     {
         std::array<uint8_t, DNS_MAX_LEN> rx_buffer;
 

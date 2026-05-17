@@ -37,9 +37,13 @@ class LFS
         }
     }
 
+    //  Func    mkdir
+    /// @brief  Create a directory at the specified path within LittleFS
+    /// @note   The path is relative to the LittleFS base path
+    ///         e.g. mkdir("/web") creates /lfs/web if base_path is "/lfs"
     esp_err_t mkdir(const char* path)
     {
-        std::string full_path = std::string(_config.base_path) + "/" + path;
+        std::string full_path = std::string(_config.base_path) + path;
         if (!mounted) return ESP_ERR_INVALID_STATE;
         if (::mkdir(full_path.c_str(), 0755) != 0) {
             if (errno == EEXIST) return ESP_OK;
@@ -56,6 +60,60 @@ class LFS
         return esp_littlefs_info(_config.partition_label, 
                                  &total, 
                                  &used);
+    }
+
+    FILE* read(const char* path)
+    {
+        if (!mounted) return nullptr;
+        std::string full = std::string(_config.base_path) + path;
+        return fopen(full.c_str(), "r");
+    }
+
+    //  Func    write
+    /// @brief  Write data to a file (create or truncate + write)
+    /// @note   Works for any file type — HTML text, binary, etc.
+    ///         All files are raw bytes at the filesystem level.
+    /// @param  path — relative path within LittleFS (e.g. "portal.html")
+    /// @param  data — pointer to the data buffer
+    /// @param  len  — number of bytes to write
+    esp_err_t write(const char* path, const void* data, size_t len)
+    {
+        if (!mounted) return ESP_ERR_INVALID_STATE;
+
+        std::string full = std::string(_config.base_path) + path;
+        FILE *f = fopen(full.c_str(), "w");
+        if (!f) {
+            ESP_LOGE(TAG, "write: fopen failed for %s", full.c_str());
+            return ESP_FAIL;
+        }
+
+        size_t written = fwrite(data, 1, len, f);
+        fclose(f);
+
+        if (written != len) {
+            ESP_LOGE(TAG, "write: wrote %zu/%zu bytes to %s", written, len, full.c_str());
+            return ESP_FAIL;
+        }
+        return ESP_OK;
+    }
+
+    //  Func    overwrite
+    /// @brief  Same as write() — fopen "w" already truncates existing files
+    /// @note   Kept as a separate API in case append-mode write is added later
+    esp_err_t overwrite(const char* path, const void* data, size_t len)
+    {
+        return write(path, data, len);
+    }
+
+    esp_err_t remove(const char* path)
+    {
+        if (!mounted) return ESP_ERR_INVALID_STATE;
+        std::string full = std::string(_config.base_path) + path;
+        if (std::remove(full.c_str()) != 0) {
+            ESP_LOGE(TAG, "Failed to remove file: %s", full.c_str());
+            return ESP_FAIL;
+        }
+        return ESP_OK;
     }
 
     const char* base() const { return _config.base_path; }
