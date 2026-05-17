@@ -35,10 +35,10 @@ public:
     //     }, "dns_server", 4096, this, 5, &dns_task_handle);
     // }
 
-    //  Func    Start_CP  
-    /// @brief  Start the DNS server task for the Captive Portal
+    //  Func    startRedirection  
+    /// @brief  Redirect all DNS queries to ESP32 SoftAP IP for captive portal functionality
     /// @note   Creates a FreeRTOS task that listens on port 53 and runs the Run_CP loop
-    void Start_CP()
+    void startRedirection()
     {
         isRunning = true;
         xTaskCreate([](void* arg) {

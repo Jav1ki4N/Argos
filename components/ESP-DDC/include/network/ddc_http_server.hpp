@@ -145,6 +145,7 @@ private:
             fclose(file);
             /* Send response */
             httpd_resp_send(req, content.c_str(), content.size());
+            ESP_LOGI(TAG, "Served root HTML, %d bytes", file_size);
         }
         return ESP_OK;
     }

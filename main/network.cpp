@@ -68,16 +68,19 @@ void network_task(void *arg)
     /// @brief Redirect any DNS query to ESP32's AP IP
     /// @note  Must be initialized after WIFI is set to SoftAP
     DNServer dns;
-    dns.Start_CP();
+    dns.startRedirection();
 
     //  Obj    HTTP Server for Configuration Captive Portal
     /// @brief Create an HTTP to serve the captive portal page 
     HttpServer Argos_server(HttpServer::Mode::CaptivePortal, 
                             HttpServer::FileSys::LittleFS, 
                             &vault);
+                            
+    // Save captive portal HTML to LittleFS
     Argos_server.saveWeb(HttpServer::ROOT_NAME,        // Captive Portal HTML as root
                          CAPTIVE_PORTAL_HTML.c_str(),  // Captive Portal content
                          CAPTIVE_PORTAL_HTML.length());
+    // Start HTTP server to serve captive portal                     
     Argos_server.start();   
 
     // //  Obj    HTTP Client
