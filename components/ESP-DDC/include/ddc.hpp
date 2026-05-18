@@ -35,4 +35,5 @@
 #include "network/ddc_http_client.hpp"
 #include "network/ddc_http_server.hpp"
 #include "network/ddc_dns_server.hpp"
+#include "network/ddc_mdns.hpp"
 

@@ -38,8 +38,7 @@ public:
         esp_log_level_set("httpd_parse", ESP_LOG_ERROR);
         if(mode == Mode::CaptivePortal) _config = Make_CPConfig();
     }
-    ~HttpServer();
-    // TODO: call stop() in destructor
+    ~HttpServer() { stop(); }
 
     void start()
     {        
@@ -72,8 +71,13 @@ public:
                 httpd_register_uri_handler(server, &h);
         }
     };
-    void stop();
-    // TODO: if server != nullptr, httpd_stop(server); server = nullptr;
+    void stop()
+    {
+        if (server != nullptr) {
+            httpd_stop(server);
+            server = nullptr;
+        }
+    }
 
     //  Func    save_web
     /// @brief  Write a web asset to the web/ subdirectory (e.g. portal.html, style.css)

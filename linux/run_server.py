@@ -1,12 +1,24 @@
-# dependencies: psutil, flask
+#!/usr/bin/env python
+# dependencies: psutil, flask, zeroconf
 from   flask import Flask, jsonify
 import psutil
 import platform
 import socket
 import time
 
+from zeroconf import Zeroconf, ServiceInfo
+
 # server object
 app = Flask(__name__)
+
+def get_local_ip():
+    """Return the non-loopback IPv4 address of this machine."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('8.8.8.8', 53))
+        return s.getsockname()[0]
+    finally:
+        s.close()
 
 def get_cpu_temp():
     try:
@@ -25,7 +37,7 @@ def system_info():
     cpu_freq = psutil.cpu_freq()
     mem      = psutil.virtual_memory()
     disk     = psutil.disk_usage('/')
-    
+
     return jsonify({
         "cpu_percent":   psutil.cpu_percent(interval=0.5),
         "cpu_cores":     psutil.cpu_count(logical=False),
@@ -47,4 +59,23 @@ def system_info():
     })
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+    local_ip = get_local_ip()
+
+    # mDNS broadcast — makes argos-target.local resolvable on the LAN
+    info = ServiceInfo(
+        type_="_http._tcp.local.",
+        name="argos._http._tcp.local.",
+        server="argos-target.local.",
+        parsed_addresses=[local_ip],
+        port=8080,
+        properties={"path": "/api/info"},
+    )
+    zc = Zeroconf()
+    zc.register_service(info)
+    print(f"mDNS broadcasting: argos-target.local → {local_ip}:8080")
+
+    try:
+        app.run(host='0.0.0.0', port=8080)
+    finally:
+        print("Shutting down mDNS...")
+        zc.close()

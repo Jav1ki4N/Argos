@@ -16,6 +16,8 @@
   ],
   "idf.flashType": "UART",
   "idf.extensionActivationMode": "always",
-  "python.terminal.activateEnvironment": false
+  "python.terminal.activateEnvironment": false,
+  "python-envs.defaultEnvManager": "ms-python.python:conda",
+  "python-envs.defaultPackageManager": "ms-python.python:conda"
 
 }
