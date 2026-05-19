@@ -1,9 +1,10 @@
 
-/* Application headers */
+/* Self */
 #include "network.hpp"
 
-/* DDC headers */
+/* ESP-DDC */
 #include "ddc.hpp"
+#include "esp_log.h"
 #include "root.hpp"
 #include "network/ddc_http_client.hpp"
 #include "network/ddc_dns_server.hpp"
@@ -11,24 +12,39 @@
 /* ESP-IDF Components */
 #include "freertos/idf_additions.h"
 
-/* C/C++ */
-
 /* Third-party */
 #include <cJSON.h>
 
-/* Global vars */
-QueueHandle_t client_q = nullptr; // need to be accessed in UI Task
-static const char* TARGET_HOSTNAME = "argos-target"; // matches server.py mDNS broadcast
+/**
+ * Global Variables & Typedefs
+ * - client_q         Queue for sending parsed client info from network task to UI task 
+ * - TARGET_HOSTNAME  mDNS hostname of the target PC, must be modified along with the PC client app
+ * - isProfileLoaded  Determine if WIFI can switch to STA mode and start mDNS query for target IP
+ * - OnSaveHandlerCTX Extra context used in the handler for POST request to "/save"
+ *                    Here is the LittleFS instance for saving profiles
+ * - Log Tags
+*/
+
+QueueHandle_t client_q = nullptr; 
+static const char* TARGET_HOSTNAME = "argos-target"; 
 static SemaphoreHandle_t isProfileLoaded = nullptr;
-struct OnSaveHandlerCTX
-{
-    LFS* lfs;
-};
+struct OnSaveHandlerCTX{ LFS* lfs;};
+static const char* TAG = "Argos";
+
+#define LOG_ON true
+
+/**
+ * Func   http_on_save_handler
+ * @brief In captive portal page when user clicks "Save" a POST request to "/save" 
+ *        uri will be sent and thus triggering this handler
+ * @note  Parse received data from captive portal and save the profile to LittleFS
+*/
 
 esp_err_t http_on_save_handler(httpd_req_t *req)
 {
+    /* get user context  */
     auto *ctx = reinterpret_cast<OnSaveHandlerCTX*>(req->user_ctx);
-    LFS* lfs = ctx->lfs;
+    LFS* lfs = ctx->lfs; // LittleFS instance
 
     char buf[256];
     int ret = httpd_req_recv(req, buf, req->content_len);
@@ -38,71 +54,52 @@ esp_err_t http_on_save_handler(httpd_req_t *req)
     char ssid[64] = {0};
     char password[64] = {0};
     char profile_name[64] = {0};
+    char ntp_server[64] = {0};
 
     httpd_query_key_value(buf, "ssid", ssid, sizeof(ssid));
     httpd_query_key_value(buf, "password", password, sizeof(password));
     httpd_query_key_value(buf, "profile_name", profile_name, sizeof(profile_name));
+    httpd_query_key_value(buf, "ntp_server", ntp_server, sizeof(ntp_server));
 
-    ESP_LOGI("APP", "Captive portal received SSID: %s", ssid);
+    ESP_LOGI(TAG, "Captive portal received SSID: %s", ssid);
 
     Profile p = {};
     strlcpy(p.ssid,         ssid,         sizeof(p.ssid));
     strlcpy(p.password,     password,     sizeof(p.password));
     strlcpy(p.profile_name, profile_name, sizeof(p.profile_name));
+    strlcpy(p.ntp_server,   ntp_server,   sizeof(p.ntp_server));
     lfs->write("/profile", &p, sizeof(p));
 
     httpd_resp_send(req, "Config received", HTTPD_RESP_USE_STRLEN);
-    xSemaphoreGive(isProfileLoaded); 
+
+    /* Profile stored under /lfs/profile */
+    xSemaphoreGive(isProfileLoaded); // allow WIFI STA mode & mDNS query in network task
     return ESP_OK;
 }
+
+/** 
+ * Task   network_task
+ * @brief Main network task for handling WiFi, DNS, and HTTP operations
+ * @note  This task will run after the UI task is initialized
+*/
 
 void network_task(void *arg)
 {
     //  Obj    LittleFS File System
     /// @brief Initialize LittleFS as to store configs & htmls
-    /// @note  base() returns "/lfs"
+    /// @note  In this case the root path is set to "/lfs"
     LFS vault; 
-    ESP_LOGI("LittleFS","LittleFS mounted at: %s", vault.base());
-
-    /* Create directories */
-    // do nothing if already exists
-    // vault.mkdir("/config");
-    // vault.mkdir("/config/wifi");
-    // vault.mkdir("/config/http");
+    ESP_LOGI(TAG,"LittleFS mounted at: %s", vault.base());
     vault.mkdir("/web"); // where the root page will be stored
 
-    /* Clean up stale files from previous runs (if any) */
-    vault.remove("/test.txt");
-
-    // ============================================================
-    // LittleFS Write + Read Test
-    // ============================================================
-    // {
-    //     const char *test_msg = "hello world";
-    //     ESP_LOGI("LittleFS", "[LFS TEST] Writing: %s", test_msg);
-    //     vault.write("/test.txt", test_msg, strlen(test_msg));
-
-    //     FILE *f = vault.read("/test.txt");
-    //     if (f) {
-    //         char buf[64] = {};
-    //         fgets(buf, sizeof(buf), f);
-    //         fclose(f);
-    //         ESP_LOGI("LittleFS", "[LFS TEST] Read back: %s", buf);
-    //     } else {
-    //         ESP_LOGE("LittleFS", "[LFS TEST] Read failed");
-    //     }
-    // }
-
-    /* ==================== NETWORK TASK START ================== */
-    /* network task will only run after UI task's booting is done */
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-    //  Obj    WiFi
+    //  Obj    WiFi SoftAP 
     /// @brief Set up the ESP32 as a WiFi Access Point for the Captive Portal
     /// @note  Initialized as SoftAP and will switch to STA after configuration
-    WIFI Argos_network(WIFI::Mode::SoftAP,
-                       "Argos", 
-                       "Clairvoyance");
+    WIFI wifi(WIFI::Mode::SoftAP,
+             "Argos",         //ssid
+             "Clairvoyance"); //pwd
 
     //  Obj    DNS Server for Configuration Captive Portal
     /// @brief Redirect any DNS query to ESP32's AP IP
@@ -112,70 +109,78 @@ void network_task(void *arg)
 
     //  Obj    HTTP Server for Configuration Captive Portal
     /// @brief Create an HTTP to serve the captive portal page 
-    HttpServer Argos_server(HttpServer::Mode::CaptivePortal, 
-                            HttpServer::FileSys::LittleFS, 
-                            &vault);
-                            
-    // Save captive portal HTML to LittleFS
-    Argos_server.saveWeb(HttpServer::ROOT_NAME,        // Captive Portal HTML as root
-                         CAPTIVE_PORTAL_HTML.c_str(),  // Captive Portal content
-                         CAPTIVE_PORTAL_HTML.length());
+    HttpServer server(HttpServer::Mode::CaptivePortal,
+                      HttpServer::FileSys::LittleFS);
 
-    // Register custom URI handlers for urls other than root
-    // on click "Save" in capative portal, a POST request willbe sent to '/save'
+    // register littleFS instance
+    server.registerLittleFS(&vault);
+    
+    // Create root directory for webs
+    server.makeRootDir();
+
+    // Save captive portal HTML to LittleFS under /lfs/web
+    server.saveWeb(HttpServer::ROOT_NAME,        // Captive Portal HTML as root
+                   CAPTIVE_PORTAL_HTML.c_str(),  // Captive Portal content
+                   CAPTIVE_PORTAL_HTML.length());
+
+    // Register URI & handler for receiving profile from captive portal
+    // When user clicks "Save" a POST request with profile data will be sent to uri "/save"
+    // thus triggering the registered handler
     OnSaveHandlerCTX save_ctx = { .lfs = &vault };
-    Argos_server.registerURI("/save", HTTP_POST, http_on_save_handler, &save_ctx);
+    server.registerURI("/save", HTTP_POST, http_on_save_handler, &save_ctx);
 
     // Start HTTP server to serve captive portal                     
-    Argos_server.start();   
+    server.start();   
+    
+    ESP_LOGI(TAG, "Waiting for profile to be loaded...");
+    isProfileLoaded = xSemaphoreCreateBinary();
+
+    /* At this point the user should enter captive portal */
+    /* Fill up all fields and click "Save" */
+    /* Hnadler will be called and profile will be stored */
+
+    xSemaphoreTake(isProfileLoaded, portMAX_DELAY);
+    ESP_LOGI(TAG,"Profile loaded & stored under /lfs/profile");
     
     // Read profile from LittleFS and build target URL
-    Profile p;
+    Profile profile;
     
-    ESP_LOGI("Argos", "Waiting for profile to be loaded...");
-    isProfileLoaded = xSemaphoreCreateBinary();
-    xSemaphoreTake(isProfileLoaded, portMAX_DELAY);
-    ESP_LOGI("Argos","Profile loaded");
-
     FILE* f = vault.read("/profile");
     if(f)
     {
-        fread(&p, sizeof(p), 1, f);
+        fread(&profile, sizeof(profile), 1, f);
         fclose(f);
-        ESP_LOGI("Argos", "Read profile - SSID: %s, Password: %s, Profile Name: %s", p.ssid, p.password, p.profile_name);
+        ESP_LOGI(TAG, "Read profile - SSID: %s, Password: %s, Profile Name: %s, NTP: %s", profile.ssid, profile.password, profile.profile_name, profile.ntp_server);
     }
     else
     {
-        ESP_LOGW("Argos", "No profile found in LittleFS");
+        ESP_LOGW(TAG, "No profile found in LittleFS");
     }
 
     // Switch ESP32 to STA and connect to the target WIFI
     // Default using profile under /profile
     // Stop captive portal services before switching WiFi mode
     dns.Stop();
-    Argos_server.stop();
+    server.stop();
 
-    ESP_LOGI("Argos", "Connecting to WiFi SSID: %s", p.ssid);
-    Argos_network.restart(WIFI::Mode::Station,
-                          p.ssid,
-                          p.password);
+    ESP_LOGI(TAG, "Connecting to WiFi SSID: %s", profile.ssid);
+    wifi.restart(WIFI::Mode::Station,
+                          profile.ssid,
+                          profile.password);
 
-    //  On entering STA mode, mDNS start querying for target IP
-    //  obj mDNS Service
+    //  obj    mDNS Service
     /// @brief Query target IP using mDNS
     mDNS mdns;
     mdns.start();
-    char *ip = mdns.queryForIP(TARGET_HOSTNAME);
-    if (ip == nullptr)
-    {
-        ESP_LOGE("Argos", "Failed to resolve target IP via mDNS. Check if the target device is on and connected to the same network.");
+    std::string ip = mdns.queryForIP(TARGET_HOSTNAME);
+    if (ip.empty()) {
+        ESP_LOGE(TAG, "Failed to resolve target IP via mDNS");
         vTaskDelete(nullptr); // Terminate task if mDNS query fails
         return;
     }
-    std::string target_url = "http://" + std::string(ip) + ":8080/api/info";
-    ESP_LOGI("Argos", "Target URL: %s", target_url.c_str());
-    free(ip); // free the duplicated string returned by queryForIP
-    mdns.stop(); // stop mDNS as it's no longer needed after obtaining the IP
+    std::string target_url = "http://" + ip + ":8080/api/info";
+    ESP_LOGI(TAG, "Target URL: %s", target_url.c_str());
+    mdns.stop();
 
     //  Obj    HTTP Client
     /// @brief HTTP client to fetch system info from PC
@@ -183,8 +188,11 @@ void network_task(void *arg)
     client_q = xQueueCreate(3, sizeof(ClientMsg));
 
     /* SNTP Time Sync */
-    if (ddc_sntp_sync("ntp1.aliyun.com")) ESP_LOGI("SNTP", "Time sync successful");
-    else                                  ESP_LOGW("SNTP", "Time sync failed");
+    const char *ntp = profile.ntp_server[0] ? profile.ntp_server : "pool.ntp.org";
+    ESP_LOGI(TAG,"Launching SNTP Time Sync with server: %s", ntp);
+    SNTP sntp(ntp);
+    sntp.setTimezone("CST-8");
+    sntp.sync();
 
 
     for(;;)
@@ -195,7 +203,7 @@ void network_task(void *arg)
         /* GET Success with a non-empty content */
         if (msg.status_code == 200 && !msg.body.empty()) 
         {
-            ESP_LOGI("JSON", "Raw Body: %s", msg.body.c_str());
+            ESP_LOGI(TAG, "Raw Body: %s", msg.body.c_str());
 
             /* Parse JSON */
             cJSON *root = cJSON_Parse(msg.body.c_str());
@@ -287,12 +295,12 @@ void network_task(void *arg)
             }
             else 
             {
-                ESP_LOGE("JSON", "Parse Failed: [%s]", cJSON_GetErrorPtr());
+                ESP_LOGE(TAG, "Parse Failed: [%s]", cJSON_GetErrorPtr());
             }
         }
         else 
         {
-            ESP_LOGW("JSON", "HTTP Request Failed or Empty Body");
+            ESP_LOGW(TAG, "HTTP Request Failed or Empty Body");
         }
 
         vTaskDelay(1000 / portTICK_PERIOD_MS); // client send GET request every 1sec

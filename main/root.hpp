@@ -45,7 +45,7 @@ static const std::string CAPTIVE_PORTAL_HTML = R"raw(<!DOCTYPE html>
         font-size: 0.95rem;
         color: #555;
       }
-      input[type="text"], input[type="password"] {
+      input[type="text"], input[type="password"], select {
         width: 100%;
         padding: 0.85rem;
         border: 1px solid #ddd;
@@ -55,7 +55,7 @@ static const std::string CAPTIVE_PORTAL_HTML = R"raw(<!DOCTYPE html>
         background-color: #fafafa;
         transition: border-color 0.2s;
       }
-      input[type="text"]:focus, input[type="password"]:focus {
+      input[type="text"]:focus, input[type="password"]:focus, select:focus {
         border-color: #3498db;
         outline: none;
         background-color: #fff;
@@ -111,6 +111,13 @@ static const std::string CAPTIVE_PORTAL_HTML = R"raw(<!DOCTYPE html>
           <input type="password" id="password" name="password" placeholder="Enter the WiFi password (if any)">
         </div>
         <div class="form-group">
+          <label for="ntp_server">NTP Server</label>
+          <select id="ntp_server" name="ntp_server">
+            <option value="ntp1.aliyun.com">ntp1.aliyun.com</option>
+            <option value="pool.ntp.org">pool.ntp.org</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label for="profile_name">Profile Name</label>
           <input type="text" id="profile_name" name="profile_name" placeholder="Default: same as SSID">
         </div>
@@ -143,6 +150,7 @@ static const std::string CAPTIVE_PORTAL_HTML = R"raw(<!DOCTYPE html>
 
         var body = 'ssid=' + encodeURIComponent(ssidEl.value)
                  + '&password=' + encodeURIComponent(document.getElementById('password').value)
+                 + '&ntp_server=' + encodeURIComponent(document.getElementById('ntp_server').value)
                  + '&profile_name=' + encodeURIComponent(profEl.value || ssidEl.value);
 
         showMsg('Connecting, please wait ...', 'success');

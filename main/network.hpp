@@ -33,6 +33,7 @@ struct Profile
     char ssid[32]          = {};
     char password[64]      = {};
     char profile_name[16]  = {};
+    char ntp_server[32]    = {};
 };
 
 void network_task(void *arg);

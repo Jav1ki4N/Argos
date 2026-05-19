@@ -29,9 +29,8 @@ public:
 
     HttpServer(Mode mode = Mode::Normal,
                FileSys fs = FileSys::Embedded,
-               LFS*   lfs = nullptr,
                httpd_config_t config = DEFAULT_CONFIG)
-    : _config(config), _mode(mode), _fs(fs), _lfs(lfs)
+    : _config(config), _mode(mode), _fs(fs)
     {
         esp_log_level_set("httpd_uri", ESP_LOG_ERROR);
         esp_log_level_set("httpd_txrx", ESP_LOG_ERROR);
@@ -76,6 +75,24 @@ public:
         if (server != nullptr) {
             httpd_stop(server);
             server = nullptr;
+        }
+    }
+
+    void registerLittleFS(LFS* lfs)
+    {
+        _lfs = lfs;
+    }
+
+    void makeRootDir()
+    {
+        if(_fs == FileSys::LittleFS)
+        {
+            if(_lfs == nullptr)
+            {
+                ESP_LOGE(TAG, "LittleFS instance is null");
+                return;
+            }
+            _lfs->mkdir("/web");
         }
     }
 

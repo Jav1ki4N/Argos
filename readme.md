@@ -121,7 +121,7 @@ The prototype version of this project and only used for testment. Some issues ar
 - [x] Redirect to a captive portal on AP mode
 - [x] Get configuration profile from captive portal & Connect to target Wi-Fi
 - [ ] Support multiple profiles
-- [ ] Use mDNS to auto-get target device's ip
+- [x] Use mDNS to auto-get target device's ip
 - [ ] Battey detection via ADC
 - [ ] ...
 

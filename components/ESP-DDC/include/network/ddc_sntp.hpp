@@ -18,46 +18,56 @@
 #include "esp_netif_sntp.h"
 
 /* C/C++ Libraries */
+#include <string>
 #include <time.h>
 #include <sys/time.h>
 
-static const char *TAG = "SNTP";
-
-/* Sync system time once, then deinit SNTP.     */
-/* - Returns true on success, false on timeout. */
-/* - Called only if Wi-Fi is connected.         */
-inline bool ddc_sntp_sync(const char *server = "pool.ntp.org", // SNTP server
-                          int max_retry_count = 15,            // max retry of SNTP synv request
-                          int timeout_ms = 2000)               // timeout for each SNTP sync request
+class SNTP 
 {
-    /* Init SNTP service */
-    /* - use default config */
-    /* - start request   */
-    esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(server);
+    public:
 
-    /* SNTP is one and only so no handle */
-    /* - and there's no much to interact with */
-    esp_netif_sntp_init(&config);
+    struct SNTPSyncConfig {
+        uint8_t  max_retry_count = 15;      // max retry of SNTP synv request
+        uint16_t tiemout_ms      = 2000;    // timeout for each SNTP
+    };
+    
+    SNTP(const char* server):
+    _server(server)
+    {
+        /* Use default config for SNTP */
+        esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(server);
+        /* Init with config - no handler needed */
+        esp_err_t err = esp_netif_sntp_init(&config);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize SNTP");
+        }
+    }
+    ~SNTP() = default;
 
-    int retry_count = 0; // current retry count
-    while (esp_netif_sntp_sync_wait(timeout_ms / portTICK_PERIOD_MS) == ESP_ERR_TIMEOUT
-           && ++retry_count < max_retry_count) {
-        ESP_LOGI(TAG, "Waiting for time sync... (%d/%d)", retry_count, max_retry_count);
+    void setSyncConfig(const SNTPSyncConfig& config){ _config = config;}
+
+    void sync(){
+        uint8_t retry_count = 0;
+        while (esp_netif_sntp_sync_wait(_config.tiemout_ms / portTICK_PERIOD_MS) == ESP_ERR_TIMEOUT
+               && ++retry_count < _config.max_retry_count) {
+                ESP_LOGI(TAG, "Waiting for time sync... (%d/%d)", retry_count, _config.max_retry_count);
+        }
+        esp_netif_sntp_deinit();
+        if (retry_count < _config.max_retry_count) {
+            ESP_LOGI(TAG, "Time sync successful");
+        } else {
+            ESP_LOGW(TAG, "Time sync failed after %d attempts", _config.max_retry_count);
+        }
     }
 
-    /* Request done, deinit SNTP */
-    /* - whether success or not  */
-    esp_netif_sntp_deinit();
-
-    /* Set local timezone */
-    setenv("TZ", "CST-8", 1);
-    tzset();
-
-    if (retry_count < max_retry_count) {
-        ESP_LOGI(TAG, "Time synced successfully");
-        return true;
+    void setTimezone(const char* tz) {
+        setenv("TZ", tz, 1);
+        tzset();
     }
 
-    ESP_LOGW(TAG, "Time sync timed out");
-    return false;
-}
+    private:
+    static constexpr const char* TAG = "SNTP";
+    const char*              _server = nullptr;
+    SNTPSyncConfig _config;
+    
+};
