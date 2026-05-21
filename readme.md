@@ -6,8 +6,7 @@
 
 ## About this project
 
-**Argos** (*Ἄργος*) is a system monitor that displays host system information on an `256*64` OLED screen:
-
+**Argos** (*Ἄργος*) is a ESP32C3-powered system monitor that displays host system information on a `256*64` OLED screen:
 - **Hostname** 
 - **CPU Info**: Core Frequency & Temperature / Threads & Cores
 - **Memory Info**: Total / Used / Usage Percentage
@@ -26,21 +25,42 @@
 
 Argos has two components:
 
-1. **A PC-side agent** (`./server`) — a binary that collects system metrics (CPU, memory, disk, OS info) and exposes them as a `JSON` HTTP endpoint on port `8080`.
+1. **A PC-side agent** (`./run_server`) — a binary that collects system metrics (CPU, memory, disk, OS info) and exposes them as a `JSON` HTTP endpoint on port `8080`.
 
 2. **An ESP32 device** — connects to the same Wi-Fi network, polls the agent's `/api/info` endpoint every second, parses the JSON response, and renders the data on the OLED display.
 
-
+```mermaid
+graph TD
+A[Device: Launch Server Service]-->B[Argos:SoftAP & Http Server]
+B-->C[Captive Portal Configuartion]
+C-->|POST|B
+B-->D[Argos: STA & Http Client]
+D-->|GET|A
+A-->|JSON|D
+```
 
 ## Deployment
 
 ### 1. PC Agent (Server)
 
+A `run_server.py` script is provided under the `/linux` directory to launch the server service on the target device.
+
 ```bash
 git clone https://github.com/Jav1ki4N/Argos.git
-cd Argos
-./server
 ```
+
+```bash
+cd linux
+./run_server.py
+```
+
+If you do not have all the dependencies installed, you can also execute the `run_server` binary file, which has already been compiled and packaged in a Linux environment:
+
+```
+./run_server
+```
+
+For Windows users, compiling the Python file yourself is required, as a pre-built Windows binary is currently a TODO.
 
 Once running, verify the endpoint is reachable:
 
@@ -48,21 +68,30 @@ Once running, verify the endpoint is reachable:
 curl http://$(hostname -I | awk '{print $1}'):8080/api/info
 ```
 
-### 2. Configuration
+*Dependencies:
 
-ESP32 will be intialized as a `softAP`(access point) that allows your phone or other devices to connected to.
+```
+Package                   Version
+------------------------- -------
+Flask                     3.1.3
+psutil                    7.2.2
+zeroconf                  0.149.7
+```
 
-Once connected to the AP, a captive portal service will be launched and the user can input a configuration profile via a web page that stroaged inside ESP32's flash: 
+### 2. Captive Portal
 
-- **`SSID`** - ssid of the wifi target device connected to
-- **`Password`** - password of the wifi target device connected to
-- **`ProfileName`** - the name of this configuration profile, default using **`SSID`**
+The ESP32 is initialized as a SoftAP (Access Point) for your device to connect to. Once connected, a DNS server launches to redirect all DNS queries to a **captive portal** stored in the ESP32's flash memory. You can then fill out a **configuration profile** that contains the following parameters:
 
-After that, ESP32 will switch to `STA` mode and locate the target device's ip via mDNS, and thus the target URL.
+- **`SSID`** - The SSID of the target Wi-Fi network.
+- **`Password`** - The password for the target Wi-Fi network.
+- **`NTP Server`** - The Network Time Protocol (NTP) server.
+- **`ProfileName`** - The name of this configuration profile (defaults to **SSID**).
 
-By sending `GET`, the system info will be as sent back as `.json` and ESP32 will start to parse it and fill a information structure.
-
-
+![](https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/captive_portal.png)
+<div align="center">
+<p style="font-style: italic;">Captive Portal</p>
+</div>
+After that, the ESP32 switches to STA mode and locates the target device's IP address and target URL via mDNS. By sending a `GET` request, the ESP32 receives the system info as a JSON object, which it then parses to populate an information structure.
 
 ## PCB
 
@@ -124,4 +153,6 @@ The prototype version of this project and only used for testment. Some issues ar
 - [x] Use mDNS to auto-get target device's ip
 - [ ] Battey detection via ADC
 - [ ] ...
+
+
 
