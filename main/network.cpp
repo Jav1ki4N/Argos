@@ -51,29 +51,34 @@ esp_err_t http_on_save_handler(httpd_req_t *req)
     if (ret <= 0) return ESP_FAIL;
     buf[ret] = '\0';
 
+    /* Key value pairs */
     char ssid[64] = {0};
     char password[64] = {0};
     char profile_name[64] = {0};
     char ntp_server[64] = {0};
 
-    httpd_query_key_value(buf, "ssid", ssid, sizeof(ssid));
-    httpd_query_key_value(buf, "password", password, sizeof(password));
+    /* From body buffer parse key value pairs */
+    httpd_query_key_value(buf, "ssid",         ssid,         sizeof(ssid));
+    httpd_query_key_value(buf, "password",     password,     sizeof(password));
     httpd_query_key_value(buf, "profile_name", profile_name, sizeof(profile_name));
-    httpd_query_key_value(buf, "ntp_server", ntp_server, sizeof(ntp_server));
+    httpd_query_key_value(buf, "ntp_server",   ntp_server,   sizeof(ntp_server));
 
     ESP_LOGI(TAG, "Captive portal received SSID: %s", ssid);
 
-    Profile p = {};
-    strlcpy(p.ssid,         ssid,         sizeof(p.ssid));
-    strlcpy(p.password,     password,     sizeof(p.password));
-    strlcpy(p.profile_name, profile_name, sizeof(p.profile_name));
-    strlcpy(p.ntp_server,   ntp_server,   sizeof(p.ntp_server));
-    lfs->write("/profile", &p, sizeof(p));
-
+    /* Fill up profile struct */
+    Profile profile = {};
+    strlcpy(profile.ssid,         ssid,         sizeof(profile.ssid));
+    strlcpy(profile.password,     password,     sizeof(profile.password));
+    strlcpy(profile.profile_name, profile_name, sizeof(profile.profile_name));
+    strlcpy(profile.ntp_server,   ntp_server,   sizeof(profile.ntp_server));
+    
+    /* Save profile in LittleFS under /profile/<name> 
+     * E.g. For profile_name = "test", the profile will be saved under "/profile/test.profile"
+     */
+    
+    std::string profile_path = "/profile/" + std::string(profile.profile_name) + ".profile";
+    lfs->write(profile_path.c_str(), &profile, sizeof(profile));
     httpd_resp_send(req, "Config received", HTTPD_RESP_USE_STRLEN);
-
-    /* Profile stored under /lfs/profile */
-    xSemaphoreGive(isProfileLoaded); // allow WIFI STA mode & mDNS query in network task
     return ESP_OK;
 }
 
@@ -88,10 +93,17 @@ void network_task(void *arg)
     //  Obj    LittleFS File System
     /// @brief Initialize LittleFS as to store configs & htmls
     /// @note  In this case the root path is set to "/lfs"
-    LFS vault; 
+    LFS vault;
     ESP_LOGI(TAG,"LittleFS mounted at: %s", vault.base());
-    vault.mkdir("/web"); // where the root page will be stored
+    vault.mkdir("/web");     // make directory
+    vault.mkdir("/profile"); // skip if exists
 
+    /**
+     * Wait for UI task to signal
+     * - to add a new profile
+     * - to add a new profile, if not profile exists
+     * - to start with existing profile (if any)
+     */
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
     //  Obj    WiFi SoftAP 
@@ -140,21 +152,27 @@ void network_task(void *arg)
     /* Hnadler will be called and profile will be stored */
 
     xSemaphoreTake(isProfileLoaded, portMAX_DELAY);
-    ESP_LOGI(TAG,"Profile loaded & stored under /lfs/profile");
-    
-    // Read profile from LittleFS and build target URL
-    Profile profile;
-    
-    FILE* f = vault.read("/profile");
-    if(f)
-    {
+
+    /* Read active profile name */
+    char active_name[32] = {};
+    FILE* af = vault.read("/profile/.active");
+    if (af) {
+        size_t n = fread(active_name, 1, sizeof(active_name) - 1, af);
+        active_name[n] = '\0';
+        fclose(af);
+    }
+    std::string profile_path = std::string("/profile/") + active_name + ".profile";
+
+    ESP_LOGI(TAG, "Loading profile: %s", active_name);
+
+    Profile profile = {};
+    FILE* f = vault.read(profile_path.c_str());
+    if (f) {
         fread(&profile, sizeof(profile), 1, f);
         fclose(f);
-        ESP_LOGI(TAG, "Read profile - SSID: %s, Password: %s, Profile Name: %s, NTP: %s", profile.ssid, profile.password, profile.profile_name, profile.ntp_server);
-    }
-    else
-    {
-        ESP_LOGW(TAG, "No profile found in LittleFS");
+        ESP_LOGI(TAG, "SSID: %s, NTP: %s", profile.ssid, profile.ntp_server);
+    } else {
+        ESP_LOGW(TAG, "Profile '%s' not found in LittleFS", active_name);
     }
 
     // Switch ESP32 to STA and connect to the target WIFI

@@ -25,7 +25,7 @@
 
 /* ESP-IDF Components */
 #include "freertos/idf_additions.h"
-#include "u8g2.h"
+#include "../../../components/u8g2/csrc/u8g2.h"
 
 /* C/C++ Libraries */
 #include <cstdint>
@@ -109,7 +109,10 @@ struct App_State
         Network =    1,
         About   =    2,
         None    =    3   
-    }activated_page[4] = {ActPage::Info, ActPage::Network, ActPage::About, ActPage::None}; // in-page state, can be used to control in-page animation or effects
+    }activated_page[4] = { ActPage::Info,
+                           ActPage::Network, 
+                           ActPage::About, 
+                           ActPage::None    }; 
     
     ActPage current_activated_page = ActPage::None;
 

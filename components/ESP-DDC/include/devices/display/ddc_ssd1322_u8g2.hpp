@@ -3,7 +3,6 @@
 #include "driver/spi_master.h"
 #include "hal/gpio_types.h"
 #include "soc/gpio_num.h"
-#include "u8g2.h"
 #include "../../thirdparty/ddc_u8g2.hpp"
 #include "UI/ddc_argos_u8g2.hpp"
 #include <stdint.h>

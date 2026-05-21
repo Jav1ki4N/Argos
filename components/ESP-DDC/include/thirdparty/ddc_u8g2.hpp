@@ -18,9 +18,9 @@
 #include "driver/spi_master.h"
 #include "esp_log.h"
 #include "soc/gpio_num.h"
-#include "u8g2.h"
+#include "../../../components/u8g2/csrc/u8g2.h"
 #include "../general/ddc_spi_device.hpp"
-#include "u8x8.h"
+#include "../../../components/u8g2/csrc/u8x8.h"
 
 using enum Pin::State;
 

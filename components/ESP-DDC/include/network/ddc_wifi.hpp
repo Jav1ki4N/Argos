@@ -98,7 +98,7 @@ class WIFI
 
         /* ssid of connected wifi */
         /* - can't be made std::string cuz queue doesn't support it */
-    char ssid[32];
+        char ssid[32];
     };
 
     /* FreeRTOS Event Group  */
