@@ -14,6 +14,8 @@
 - **OS**: Type / Distro & Version
 - **Time**: UTC / Local
 
+---
+
 <div align="center">
   <img src="https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/Argos.jpg" width="600">
   <img src="https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/argos_example.gif" width="600">
@@ -31,12 +33,15 @@ Argos has two components:
 
 ```mermaid
 graph TD
-A[Device: Launch Server Service]-->B[Argos:SoftAP & Http Server]
-B-->C[Captive Portal Configuartion]
-C-->|POST|B
-B-->D[Argos: STA & Http Client]
-D-->|GET|A
+A[Target Device: 
+Launch Server Service]
+B[Argos:SoftAP & HTTP Server]-->|Launch|C[Captive Portal]
+C-->|POST request|B
+B-->|auto switch|D[Argos: STA & HTTP Client]
+D-->|GET request|A
 A-->|JSON|D
+D-->|Parsed Info|E[Argos: Display]
+F[Argos: Encoder]-->|Input Events|E
 ```
 
 ## Deployment
@@ -91,7 +96,7 @@ The ESP32 is initialized as a SoftAP (Access Point) for your device to connect t
 <div align="center">
 <p style="font-style: italic;">Captive Portal</p>
 </div>
-After that, the ESP32 switches to STA mode and locates the target device's IP address and target URL via mDNS. By sending a `GET` request, the ESP32 receives the system info as a JSON object, which it then parses to populate an information structure.
+After that, the ESP32 switches to STA mode and locates the target device's IP address and target URL via mDNS. By sending a GET request, the ESP32 receives the system info as a JSON object, which it then parses to populate an information structure.
 
 ## PCB
 
@@ -157,6 +162,3 @@ The prototype version of this project and only used for testment. Some issues ar
 - [ ] Battey detection via ADC
 - [ ] ...
 
-
-
-|||

@@ -25,6 +25,7 @@
  * - Log Tags
 */
 
+QueueHandle_t filesys_q = nullptr;
 QueueHandle_t client_q = nullptr; 
 static const char* TARGET_HOSTNAME = "argos-target"; 
 static SemaphoreHandle_t isProfileLoaded = nullptr;

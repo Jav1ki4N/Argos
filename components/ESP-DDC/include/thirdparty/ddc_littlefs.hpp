@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 
 #include <string>
+#include <dirent.h>
 
 /* Third-Party */
 #include "../../components/esp_littlefs/include/esp_littlefs.h"
@@ -116,7 +117,7 @@ class LFS
         return ESP_OK;
     }
 
-    const char* base() const { return _config.base_path; }
+    std::string_view base() const { return _config.base_path; }
 
     private:
 

@@ -7,6 +7,7 @@
 #include "devices/ddc_encoder.hpp"
 #include <variant>
 
+
 /* Public Structure def */
 
 struct SystemState
@@ -19,6 +20,8 @@ struct SystemState
           WIFI::WifiMsg wifi_msg;
               ClientMsg system_info;
     Encoder::EncoderMsg input_event;
+    
+    std::array<std::array<char,64>,3> profile_list;
 
     /** UI State
      *  @param focus_tab    shows which root page is focused in preview mode
@@ -27,12 +30,20 @@ struct SystemState
      */
     uint8_t focus_tab = 1;      
     char curr_time[9] = "00:00:00"; 
-    bool isEnterStack = false; 
+    bool isEnterStack = false;
+    
+    /** Update Flags
+     *  @brief Update only when you need it to
+     *  @param if2UpdateProfileList you won't want to read from filesys frequently.
+     */
+     bool if2UpdateProfileList = false;
 };
 
 enum class PageCommand : uint8_t
 {
     None,
+    Enter,
+    Exit,
     // Network Page
     // Profile Page
     LoadProfile,
@@ -53,10 +64,70 @@ using Payload = std::variant<
 
 struct PageMsg {
     PageCommand command;
-        Payload payload;
+        Payload payload = std::monostate{};
 };
 
+struct HWINFO // Hardware info
+    {
+        static constexpr uint8_t WIDTH  = 255;
+        static constexpr uint8_t WEIGHT = 64;
+    };
 
+    struct STATIC // static element placement
+    {
+        struct NAV
+        {
+            static constexpr uint8_t NAV_BAR_WIDTH  = 255;
+            static constexpr uint8_t NAV_BAR_HEIGHT = 13;
+        };
+   
+        struct TITLE
+        {
+            static constexpr uint8_t GAP_FROM_LEFT      = 3;
+            static constexpr uint8_t GAP_FROM_BUTTOM    = 3;
+            static constexpr uint8_t GAP_FROM_FIRST_TAG = 13;
+        };
+
+        struct TABS
+        {
+            static constexpr uint8_t GAP_BETWEEN = 12;
+            static constexpr uint8_t TIME_X = 204;
+        };
+
+        struct ICON
+        {
+            static constexpr uint8_t SIZE_S = 32; // small
+            static constexpr uint8_t SIZE_M = 40; // medium
+        };
+
+        struct PAGE
+        {
+            static constexpr uint8_t LINE1 = 29;
+            static constexpr uint8_t LINE2 = 42;
+            static constexpr uint8_t LINE3 = 55;
+            static constexpr uint8_t LINE4 = 60;
+        };
+    };
+
+    struct FONT
+    {
+        static constexpr uint8_t* BASE_FONT = (uint8_t*)u8g2_font_profont11_tr;
+    };
+
+    enum class PencilMode : uint8_t
+    {
+        Hollow = 0,
+        Solid  = 1,
+        Invert = 2
+    };
+
+/**
+ * @brief Set the drawing mode for subsequent drawing operations.
+ */
+inline void setPencilMode(u8g2_t* u8g2, PencilMode mode) {
+    uint8_t _mode = static_cast<uint8_t>(mode);
+    u8g2_SetDrawColor(u8g2, _mode);
+}
 
 
 

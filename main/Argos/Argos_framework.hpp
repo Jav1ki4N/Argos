@@ -2,7 +2,9 @@
 #pragma once
 
 /* Includes */
-
+#include "Argos_global.hpp"
+#include <dirent.h>
+#include <string_view>
 /** 
   * Pages
   * Can't include page headers directly as page header includes this file 
@@ -35,7 +37,9 @@ class ArgosFramework
     /* About & Sub Pages */
     friend class AboutPage;
 
-    ArgosFramework(SSD1322 &display); 
+    ArgosFramework(SSD1322 &display, LFS &filesys):
+    _filesys(filesys),u8g2(display.get_U8g2())
+    {}
     ~ArgosFramework() = default;
 
     void render() {
@@ -106,6 +110,7 @@ class ArgosFramework
 
 
     private:
+    LFS &_filesys;
     u8g2_t* u8g2;
     SystemState system_state;
 
@@ -139,65 +144,7 @@ class ArgosFramework
     
     static constexpr const char* TITLE = "Argos V1.0";
     
-    struct HWINFO // Hardware info
-    {
-        static constexpr uint8_t WIDTH  = 255;
-        static constexpr uint8_t WEIGHT = 64;
-    };
-
-    struct STATIC // static element placement
-    {
-        struct NAV
-        {
-            static constexpr uint8_t NAV_BAR_WIDTH  = 255;
-            static constexpr uint8_t NAV_BAR_HEIGHT = 13;
-        };
-   
-        struct TITLE
-        {
-            static constexpr uint8_t GAP_FROM_LEFT      = 3;
-            static constexpr uint8_t GAP_FROM_BUTTOM    = 3;
-            static constexpr uint8_t GAP_FROM_FIRST_TAG = 13;
-        };
-
-        struct TABS
-        {
-            static constexpr uint8_t GAP_BETWEEN = 12;
-            static constexpr uint8_t TIME_X = 204;
-        };
-
-        struct ICON
-        {
-            static constexpr uint8_t SIZE_S = 32; // small
-            static constexpr uint8_t SIZE_M = 40; // medium
-        };
-
-        struct PAGE
-        {
-            static constexpr uint8_t LINE1 = 29;
-            static constexpr uint8_t LINE2 = 42;
-            static constexpr uint8_t LINE3 = 55;
-            static constexpr uint8_t LINE4 = 60;
-        };
-    };
-
-    struct FONT
-    {
-        static constexpr uint8_t* BASE_FONT = (uint8_t*)u8g2_font_profont11_tr;
-    };
-
-    enum class PencilMode : uint8_t
-    {
-        Hollow = 0,
-        Solid  = 1,
-        Invert = 2
-    };
-
-    /**
-     * @brief Set the drawing mode for subsequent drawing operations.
-     */
-    void setPencilMode(PencilMode mode);
-
+    
     /**
      * @brief Draw static UI elements that do not change across pages
      *        The outer frame, navigation bar background, and title are drawn here.
@@ -221,5 +168,44 @@ class ArgosFramework
 
     /****/
 
+    /**
+     * Initialization
+     * @brief Initialize system state 
+     */
 
+     void getProfileList()
+     {
+        std::string_view profile_dir = "/lfs/profile"; // where profile stored
+        uint8_t count = 0;
+
+        DIR* dir = opendir(profile_dir.data()); // POSIX API to read directory
+        if(!dir)return; //failed to open
+       
+        while(dirent* entry = readdir(dir)) {
+            if(count >= system_state.profile_list.size()) break;
+            std::string_view name = entry->d_name; // file name
+
+            auto pos = name.find_last_of('.');
+            if(pos == std::string_view::npos)continue;
+            std::string_view ext = name.substr(pos); // file extension
+            if(ext != ".profile")continue; // not a profile file, skip
+
+            std::string_view base = name.substr(0, pos); // raw filename without extension
+            auto& dst = system_state.profile_list[count];
+
+            size_t len = std::min(base.size(), dst.size() - 1);
+            std::memcpy(dst.data(), base.data(), len);
+            dst[len] = '\0';
+            ++count;
+        }
+        closedir(dir);
+        system_state.if2UpdateProfileList = false; // reset flag after update
+     }
+
+    /**
+     * Command Handler
+     * @brief Handler for commands sent from Pages 
+     */
+
+     void 
 };
