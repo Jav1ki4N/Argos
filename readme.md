@@ -117,25 +117,28 @@ The prototype version of this project and only used for testment. Some issues ar
 <p style="font-style: italic;">Bottom view</p>
 </div>
 
-| Name             | Type               | Value            | Quantity |
-| ---------------- | ------------------ | ---------------- | -------- |
-| ESP32C3SuperMini | MCU/SOC            | ESP32C3          | 1        |
-| Encoder          | Physical Input     | SIQ-02FVS3       | 1        |
-| Pin Header       | Connector          | 2*8p             | 1        |
-| Power Switch     | Switch             | MSKT-12D14       | 1        |
-| USB              | USB                | USB Type-C 16p   | 1        |
-| LED              | LED                | 0603             | 2        |
-| R1,R2            | Resistor           | 0603 1kohm       | 2        |
-| R3,R4            | Resistor           | 0603 100kohm     | 2        |
-| R11,R10          | Resistor           | 0603 5.1kohm     | 2        |
-| L1               | Inductor           | 2R2 2.2uh        | 1        |
-| C1,C2,C3,C4,C5   | Capacitor          | 0603 10uf        | 5        |
-| C6,C7            | Capacitor          | 0603 0.1uf       | 2        |
-| C8               | Capacitor          | 0603 1uf         | 1        |
-| ETA9697          | Battery Charing IC | ETA9697E8A       | 1        |
-| ME6231           | LDO                | ME6231C33M5G     | 1        |
-| Battery          | Battery            | Li-Po,60x30x48mm | 1        |
 <div align="center">
+
+| Name             | Type               | Value              | Quantity |
+| ---------------- | ------------------ | ------------------ | -------- |
+| ESP32C3SuperMini | MCU/SOC            | ESP32C3            | 1        |
+| Encoder          | Physical Input     | SIQ-02FVS3         | 1        |
+| Pin Header       | Connector          | 2*8p               | 1        |
+| Power Switch     | Switch             | MSKT-12D14         | 1        |
+| USB              | USB                | USB Type-C 16p     | 1        |
+| LED              | LED                | 0603               | 2        |
+| R1,R2            | Resistor           | 0603 1kohm         | 2        |
+| R3,R4            | Resistor           | 0603 100kohm       | 2        |
+| R11,R10          | Resistor           | 0603 5.1kohm       | 2        |
+| L1               | Inductor           | 2R2 2.2uh          | 1        |
+| C1,C2,C3,C4,C5   | Capacitor          | 0603 10uf          | 5        |
+| C6,C7            | Capacitor          | 0603 0.1uf         | 2        |
+| C8               | Capacitor          | 0603 1uf           | 1        |
+| ETA9697          | Battery Charing IC | ETA9697E8A         | 1        |
+| ME6231           | LDO                | ME6231C33M5G       | 1        |
+| Battery          | Battery            | Li-Po,60x30x48mm   | 1        |
+| Display          | Display Module     | SER3.12-D, SSD1322 | 1        |
+
 <p style="font-style: italic;">BOM</p>
 </div>
 
@@ -156,3 +159,4 @@ The prototype version of this project and only used for testment. Some issues ar
 
 
 
+|||
