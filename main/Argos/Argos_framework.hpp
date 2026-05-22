@@ -5,12 +5,6 @@
 #include "Argos_global.hpp"
 #include <dirent.h>
 #include <string_view>
-/** 
-  * Pages
-  * Can't include page headers directly as page header includes this file 
-  */
-class ArgosPage;
-class NetworkPage;
 
 /* DDC */
 #include "ddc.hpp"
@@ -28,15 +22,6 @@ class ArgosFramework
 {
     public:
     
-    friend class ArgosPage;
-    /* Network & Sub pages */
-    friend class NetworkPage;
-    friend class ProfilePage;
-    /* Info & Sub Pages */
-    friend class InfoPage;
-    /* About & Sub Pages */
-    friend class AboutPage;
-
     ArgosFramework(SSD1322 &display, LFS &filesys):
     _filesys(filesys),u8g2(display.get_U8g2())
     {}
@@ -47,68 +32,67 @@ class ArgosFramework
 	    drawStatic();
 	    drawOverlay();
 
-	    ArgosPage* active_page;
+	    ArgosPage* active_root_page;
 	    using enum Encoder::EncoderMsg;
 
 	    /** Preview Mode
-	    *  Enter stack or switch between root pages
-	    */
+	     *  Enter stack or switch between root pages
+	     */
 	    if (system_state.isEnterStack == false) {
 
-            switch (system_state.focus_tab) {
-                case 0: active_page = &manager.root_info_page;    break;
-                case 1: active_page = &manager.root_network_page; break;
-                case 2: active_page = &manager.root_about_page;   break;
-            }
-		    /** Handle Input Events
-		     *  Button Pressed: Enter page stack & lock focus_tab
-		     *  Rotate:         Browse between root pages
-             */
+            /* Determine which root page to display */
+            active_root_page = manager.root_pages[system_state.focus_tab];
+		    
+            /* Enter Stack */
 		    if(system_state.input_event == ButtonPressed) {
-                system_state.isEnterStack = true;
-                manager.active_stack = &manager.stacks[system_state.focus_tab];
-                manager.active_stack->push(active_page);
-                manager.active_stack->curr_depth = 0;
+                system_state.isEnterStack = true;                               // Enable page stack
+                manager.active_stack = &manager.stacks[system_state.focus_tab]; // Set active stack
+                manager.active_stack->curr_depth = 0;                           // preview mode curr_depth is 0
+                manager.active_stack->push(active_root_page);                   // Push current root page to the top
             }
+
+            /* Browse between root pages */
 		    else system_state.focus_tab = (system_state.input_event == RotateRight) ?
 		                                  ((system_state.focus_tab + 1) % 3):
 		                                  ((system_state.focus_tab + 2) % 3);
 
-		    /* If no input event to handle, draw current root page content*/
-            active_page->draw(u8g2, system_state);
+		    /* Draw root page, this does not uses stack */
+            active_root_page->draw(u8g2, system_state);
 	    }
 	    /** Stack Mode
-	    *  In stack page browsing
-	    *  focus_tab is locked
-	    */
+	     *  In stack page browsing
+	     *  focus_tab is locked
+	     */
 	    else {
-            if(system_state.input_event != Encoder::EncoderMsg::None) {
-               //manager.active_stack->top()->onEvent();
+            ArgosPage* active_page = manager.active_stack->top(); // Get current page from stack's top
+            /* Handle message from encoder */
+            if(system_state.input_event != EncoderMsg::None) {
+                PageMsg msg_from_page = active_page->onEvent(system_state.input_event, system_state); // call top page's onEvent
+                                                                                                      // and receive message
+                /* Page intents to enter its subpage */
+                if(msg_from_page.command == PageCommand::Enter) {
+                    // e.g. <root_page,curr_depth = 1> --> order[1] = subpage1                                                 
+                    manager.active_stack->push(manager.active_stack->order[manager.active_stack->curr_depth]);
+                }
+                /* Page intents to exit */
+                else if (msg_from_page.command == PageCommand::Exit) {
+                    if(manager.active_stack->curr_depth == 1)system_state.isEnterStack = false; // Exit from a root page is to exit the stack                         
+                    active_page->onExit();                                                      // Call current page's onExit for cleanup
+                    manager.active_stack->pop();                                                // Pop the current page from stack
+                }                                                                               // do nothing if exit from root page
+                /* Page intents to trigger an action */
+                else commandDispatcher(msg_from_page); // too long to write here
             }
-            manager.active_stack->top()->draw(u8g2, system_state);
+            active_page = manager.active_stack->top(); // Get current page again in case of page switch
+            if(active_page)active_page->draw(u8g2, system_state);
 	    }
 	}
 
     public:
     /// @brief Page stack for each main page section
     /// @param MAX_DEPTH  defines how many pages (root + subpages) can be stored in the stack
-    /// @param curr_depth stack[curr_depth] shows how many pages are currently in the stack
-    ///                   and also tells which page is on the top of the stack
-    /// @note  class 'ArgosPage' is forward declared cuz it relies on ArgosFramework::SystemState
-    ///        and in return relied on by struct ArgosFramework::PageManager, which can caused 
-    ///        circular dependency or recursive inclusion.
-    ///
-    ///        When forward declared, in PageStack defination ArgosPage* can be used as pointer
-    ///        while in PageManager instances of ArgosPage are required, so PageManager must be 
-    ///        defined in the .cpp where you can just #include "Argos_Page.hpp" to access full
-    ///        definition.
-    ///
-    ///        And also, PageManager has PageStack instance, so PageStack must be made public
-    ///        so PageManager can access the full definition, too.
-    ///
-    ///        Fucking C++
-
-
+    /// @param curr_depth stack[curr_depth-1] points to current page,i.e. number of pages in stack = curr_depth
+    
     private:
     LFS &_filesys;
     u8g2_t* u8g2;
@@ -118,27 +102,55 @@ class ArgosFramework
     {
         static constexpr uint8_t MAX_DEPTH = 3;
         uint8_t curr_depth = 0;
-        ArgosPage* stack[MAX_DEPTH] = {nullptr};
-        void push(ArgosPage* page);
-        void pop();
-        ArgosPage* top() const;
+        std::array<ArgosPage*, MAX_DEPTH> stack = {nullptr};
+        std::array<ArgosPage*, MAX_DEPTH> order = {nullptr};
+
+        //  func   push
+        /// @brief Push a new page to the stack, and update the current depth
+        /// @note  this function does not check if current page is pushed in the correct order
+        void push(ArgosPage* page){
+            if(curr_depth < MAX_DEPTH){
+                stack[curr_depth++] = page; // Push new page to the current depth
+            }
+        }
+
+        //  func   pop
+        /// @brief Pop the top page from the stack, and update the current depth
+        void pop() {
+            /* When in stack, curr_depth is always positive */
+            if(curr_depth > 0 ){
+                stack[curr_depth-1] = nullptr; // Clear pointer to popped page
+                --curr_depth; // Move down the stack
+            }
+        };
+        //  func   top
+        /// @brief Get the top page from the stack, which is the current active page to be displayed
+        ArgosPage* top() const { return (curr_depth > 0) ? stack[curr_depth - 1] : nullptr; }
     };
     
     struct PageManager
     {
-        PageStack stacks[3];                       
-        PageStack* active_stack = nullptr;         
-                                                                
-        PageStack& network() { return stacks[0]; }
-        PageStack& info()    { return stacks[1]; }
-        PageStack& about()   { return stacks[2]; }
-
+        /* Pages */
         NetworkPage root_network_page;
         ProfilePage network_profile_page;
-
         InfoPage root_info_page;
         AboutPage root_about_page;
-    }manager;
+
+        ArgosPage* root_pages[3] = {&root_info_page, &root_network_page, &root_about_page};
+
+        PageStack  stacks[3];
+        PageStack* active_stack = nullptr;
+
+        /* Initialize PageManager */
+        /// @brief stack needs to know the order of pages to push
+        ///        and pages are created in PageManager, so the order should be passed in the constructor of PageManager
+        PageManager() {
+            // order[0] is not reachable (and no need to be) as minimal curr_depth in stack is 1
+            stacks[0].order = {&root_info_page,    nullptr, nullptr};               // Info page push order
+            stacks[1].order = {&root_network_page, &network_profile_page, nullptr}; // Network page push order
+            stacks[2].order = {&root_about_page,   nullptr, nullptr};               // About page push order
+        }
+    } manager;
 
     /****/
     
@@ -188,7 +200,7 @@ class ArgosFramework
             auto pos = name.find_last_of('.');
             if(pos == std::string_view::npos)continue;
             std::string_view ext = name.substr(pos); // file extension
-            if(ext != ".profile")continue; // not a profile file, skip
+            if(ext != ".txt")continue; // not a profile file, skip
 
             std::string_view base = name.substr(0, pos); // raw filename without extension
             auto& dst = system_state.profile_list[count];
@@ -206,6 +218,8 @@ class ArgosFramework
      * Command Handler
      * @brief Handler for commands sent from Pages 
      */
+     void commandDispatcher(const PageMsg& msg) {
 
-     void 
+     }
+     
 };

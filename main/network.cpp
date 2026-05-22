@@ -61,8 +61,8 @@ esp_err_t http_on_save_handler(httpd_req_t *req)
     /* From body buffer parse key value pairs */
     httpd_query_key_value(buf, "ssid",         ssid,         sizeof(ssid));
     httpd_query_key_value(buf, "password",     password,     sizeof(password));
-    httpd_query_key_value(buf, "profile_name", profile_name, sizeof(profile_name));
     httpd_query_key_value(buf, "ntp_server",   ntp_server,   sizeof(ntp_server));
+    httpd_query_key_value(buf, "profile_name", profile_name, sizeof(profile_name));
 
     ESP_LOGI(TAG, "Captive portal received SSID: %s", ssid);
 
@@ -70,14 +70,14 @@ esp_err_t http_on_save_handler(httpd_req_t *req)
     Profile profile = {};
     strlcpy(profile.ssid,         ssid,         sizeof(profile.ssid));
     strlcpy(profile.password,     password,     sizeof(profile.password));
-    strlcpy(profile.profile_name, profile_name, sizeof(profile.profile_name));
     strlcpy(profile.ntp_server,   ntp_server,   sizeof(profile.ntp_server));
-    
+    strlcpy(profile.profile_name, profile_name, sizeof(profile.profile_name));
+
     /* Save profile in LittleFS under /profile/<name> 
-     * E.g. For profile_name = "test", the profile will be saved under "/profile/test.profile"
+     * E.g. For profile_name = "test", the profile will be saved under "/profile/test.txt"
      */
     
-    std::string profile_path = "/profile/" + std::string(profile.profile_name) + ".profile";
+    std::string profile_path = "/profile/" + std::string(profile.profile_name) + ".txt";
     lfs->write(profile_path.c_str(), &profile, sizeof(profile));
     httpd_resp_send(req, "Config received", HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
@@ -95,7 +95,11 @@ void network_task(void *arg)
     /// @brief Initialize LittleFS as to store configs & htmls
     /// @note  In this case the root path is set to "/lfs"
     LFS vault;
-    ESP_LOGI(TAG,"LittleFS mounted at: %s", vault.base());
+    ESP_LOGI(TAG,"LittleFS mounted at: %s", vault.base().data());
+
+    // vault.remove("/profile/net.test.profile");
+    // vault.remove("/profile/hahaha.profile");
+    // vault.remove("/profile/lol.txt");
     vault.mkdir("/web");     // make directory
     vault.mkdir("/profile"); // skip if exists
 

@@ -9,6 +9,7 @@
 
 #include "esp_log.h"
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <string>
 #include <dirent.h>
@@ -112,6 +113,17 @@ class LFS
         std::string full = std::string(_config.base_path) + path;
         if (std::remove(full.c_str()) != 0) {
             ESP_LOGE(TAG, "Failed to remove file: %s", full.c_str());
+            return ESP_FAIL;
+        }
+        return ESP_OK;
+    }
+
+    esp_err_t rmdir(const char* path)
+    {
+        if (!mounted) return ESP_ERR_INVALID_STATE;
+        std::string full = std::string(_config.base_path) + path;
+        if (::rmdir(full.c_str()) != 0) {
+            ESP_LOGE(TAG, "Failed to remove dir: %s", full.c_str());
             return ESP_FAIL;
         }
         return ESP_OK;

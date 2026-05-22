@@ -39,6 +39,7 @@ struct SystemState
      bool if2UpdateProfileList = false;
 };
 
+
 enum class PageCommand : uint8_t
 {
     None,
@@ -63,7 +64,7 @@ using Payload = std::variant<
 >;
 
 struct PageMsg {
-    PageCommand command;
+    PageCommand command = PageCommand::None;
         Payload payload = std::monostate{};
 };
 
