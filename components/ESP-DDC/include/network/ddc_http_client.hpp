@@ -19,8 +19,7 @@ static const char *HTTP_TAG = "HTTP_CLIENT";
 class HttpClient
 {
     public:
-    HttpClient
-    (
+    HttpClient (
         const char *url,
         uint16_t timeout_ms = DEFAULT_TIMEOUT_MS,
         esp_http_client_method_t method = DEFAULT_METHOD

@@ -17,17 +17,24 @@
 
 #include "Argos_global.hpp"
 #include "Argos_Page.hpp"
+#include "devices/ddc_encoder.hpp"
+#include "freertos/idf_additions.h"
 
 class ArgosFramework
 {
     public:
     
-    ArgosFramework(SSD1322 &display, LFS &filesys):
-    _filesys(filesys),u8g2(display.get_U8g2())
+    explicit ArgosFramework(SSD1322 &display):
+    u8g2(display.get_U8g2())
     {}
     ~ArgosFramework() = default;
 
+    void setEncoderQueueHandle(QueueHandle_t encmsg_q) { encoder_msg_q = encmsg_q; }
+    void setWifiQueueHandle(QueueHandle_t wifi_q)      { wifi_msg_q = wifi_q; }
+    void setNetworkTaskCommandQueue(QueueHandle_t queue) { network_task_command_q = queue;}
+
     void render() {
+        updateSystemState(system_state);
 	    u8g2_ClearBuffer(u8g2);
 	    drawStatic();
 	    drawOverlay();
@@ -52,9 +59,12 @@ class ArgosFramework
             }
 
             /* Browse between root pages */
-		    else system_state.focus_tab = (system_state.input_event == RotateRight) ?
-		                                  ((system_state.focus_tab + 1) % 3):
-		                                  ((system_state.focus_tab + 2) % 3);
+		    else if(system_state.input_event == RotateLeft || 
+                    system_state.input_event == RotateRight ) {
+                system_state.focus_tab = (system_state.input_event == RotateRight) ?
+                                         ((system_state.focus_tab + 1) % 3):
+                                         ((system_state.focus_tab + 2) % 3);
+            }
 
 		    /* Draw root page, this does not uses stack */
             active_root_page->draw(u8g2, system_state);
@@ -86,6 +96,8 @@ class ArgosFramework
             active_page = manager.active_stack->top(); // Get current page again in case of page switch
             if(active_page)active_page->draw(u8g2, system_state);
 	    }
+
+        u8g2_SendBuffer(u8g2);
 	}
 
     public:
@@ -94,9 +106,35 @@ class ArgosFramework
     /// @param curr_depth stack[curr_depth-1] points to current page,i.e. number of pages in stack = curr_depth
     
     private:
-    LFS &_filesys;
+    static constexpr const char* TAG = "ArgosFramework";
+    //LFS &_filesys;
     u8g2_t* u8g2;
     SystemState system_state;
+    QueueHandle_t encoder_msg_q;
+    QueueHandle_t wifi_msg_q;
+
+    /* Queue sent to tasks */
+    QueueHandle_t network_task_command_q;
+
+    
+
+    /**
+     * @brief Update system state before each frame render.
+     */
+    void updateSystemState(SystemState &systate) {
+        using enum Encoder::EncoderMsg;
+        EncoderMsg enc_msg;
+        if (xQueueReceive(encoder_msg_q, &enc_msg, 0) == pdTRUE) systate.input_event = enc_msg;
+        else                                                     systate.input_event = EncoderMsg::None;
+
+        WIFI::WifiMsg wifi_msg;
+        while (xQueueReceive(wifi_msg_q, &wifi_msg, 0) == pdTRUE) systate.wifi_msg = wifi_msg;
+
+        NetworkTaskChain network_stage;
+        if (xQueueReceive(network2ui_state_q, &network_stage, 0) == pdTRUE) 
+            systate.network_stage = network_stage;
+
+    }
 
     struct PageStack
     {
@@ -161,22 +199,71 @@ class ArgosFramework
      * @brief Draw static UI elements that do not change across pages
      *        The outer frame, navigation bar background, and title are drawn here.
      */
-    void drawStatic();
+    void drawStatic() {
+        setPencilMode(u8g2, PencilMode::Solid);
+        u8g2_DrawFrame(u8g2, 0, 0, HWINFO::WIDTH, HWINFO::WEIGHT);
+        u8g2_DrawBox(u8g2, 0, 0, STATIC::NAV::NAV_BAR_WIDTH, STATIC::NAV::NAV_BAR_HEIGHT);
+        setPencilMode(u8g2, PencilMode::Hollow);
+        u8g2_SetFont(u8g2, FONT::BASE_FONT);
+        u8g2_DrawStr(u8g2,
+                     STATIC::TITLE::GAP_FROM_LEFT,
+                     STATIC::NAV::NAV_BAR_HEIGHT - STATIC::TITLE::GAP_FROM_BUTTOM,
+                     TITLE);
+    }
 
     /**
      * @brief Draw navigation tabs & selected effect
      */
-    void drawTabs();
+    void drawTabs() {
+        u8g2_SetFont(u8g2, FONT::BASE_FONT);
+        uint8_t tab_y = STATIC::NAV::NAV_BAR_HEIGHT - STATIC::TITLE::GAP_FROM_BUTTOM;
+
+        uint8_t tab_curr_x = STATIC::TITLE::GAP_FROM_LEFT
+                           + STATIC::TITLE::GAP_FROM_FIRST_TAG
+                           + u8g2_GetStrWidth(u8g2, TITLE);
+
+        const uint8_t radius = 1;
+        const uint8_t delimeter_width = u8g2_GetStrWidth(u8g2, "|");
+        const uint8_t tab_height = u8g2_GetFontAscent(u8g2) - u8g2_GetFontDescent(u8g2);
+
+        constexpr const char* text[3] = {"INFO", "NETWORK", "ABOUT"};
+
+        for (uint8_t i = 0; i < std::size(text); i++) {
+            uint8_t tab_width = u8g2_GetStrWidth(u8g2, text[i]);
+
+            /* Delimeter */
+            uint8_t delimeter_x = tab_curr_x + tab_width
+                                + ((STATIC::TABS::GAP_BETWEEN - delimeter_width) >> 1);
+            setPencilMode(u8g2, PencilMode::Hollow);
+            if (i != 2) u8g2_DrawStr(u8g2, delimeter_x, tab_y, "|");
+
+            /* Selected highlight */
+            if (i == system_state.focus_tab) {
+                u8g2_DrawRBox(u8g2, tab_curr_x - 2, tab_y - tab_height + 1,
+                              tab_width + 4, tab_height, radius);
+            }
+            setPencilMode(u8g2, (i == system_state.focus_tab) ? PencilMode::Solid
+                                                               : PencilMode::Hollow);
+            u8g2_DrawStr(u8g2, tab_curr_x, tab_y, text[i]);
+
+            tab_curr_x += tab_width + STATIC::TABS::GAP_BETWEEN;
+        }
+    }
 
     /**
      * @brief Draw the current time on the navigation bar
      */
-    void drawTime();
+    void drawTime() {
+        // todo
+    }
 
     /**
-     * @brief Draw dyanmic elements that are overlaid on all pages, such as navigation tabs and time.
+     * @brief Draw dynamic elements that are overlaid on all pages.
      */
-    void drawOverlay();
+    void drawOverlay() {
+        drawTabs();
+        drawTime();
+    }
 
     /****/
 
@@ -219,7 +306,19 @@ class ArgosFramework
      * @brief Handler for commands sent from Pages 
      */
      void commandDispatcher(const PageMsg& msg) {
-
+        using enum PageCommand;
+        switch (msg.command) {
+            /* Handled by Network Task */
+            case LoadProfile:   
+            case AddProfile:    
+            case DeleteProfile: {
+                network_task_command_q = xQueueCreate(3, sizeof(PageMsg));
+                xQueueSend(network_task_command_q, &msg, 0);
+            }
+            /* Handled by UI framework, no queue needed */
+            case AddtoGraph:    { break;}
+            default: break;
+        }
      }
      
 };

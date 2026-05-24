@@ -21,21 +21,21 @@ TaskHandle_t ui_task_handle;
 extern "C" void app_main(void)
 {
     /* ---- UI Framework Init (must be in app_main) ---- */
-    SPI     spi_bus(SPI2_HOST);
-    SSD1322 framework(spi_bus, GPIO_NUM_5, GPIO_NUM_3, GPIO_NUM_4); // dc rst cs
+    // SPI     spi_bus(SPI2_HOST);
+    // SSD1322 framework(spi_bus, GPIO_NUM_5, GPIO_NUM_3, GPIO_NUM_4); // dc rst cs
 
-    Argos_framework = &framework;
+    // Argos_framework = &framework;
 
-    /* Draw boot screen synchronously before any task runs */
-    UI_DrawBootScreen(framework.get_U8g2());
+    // /* Draw boot screen synchronously before any task runs */
+    // UI_DrawBootScreen(framework.get_U8g2());
 
     /* ---- Create Tasks ---- */
     xTaskCreate(network_task, "Network Task", 4096, nullptr,        2, &network_task_handle);
     xTaskCreate(Input_Task,   "Input Task",   2048, nullptr,        4, &input_task_handle);
-    xTaskCreate(UI_Task,      "UI Task",      4096, Argos_framework, 3, &ui_task_handle);
+    xTaskCreate(UI_Task,      "UI Task",      4096, nullptr,        3, &ui_task_handle);
 
-    /* Signal network task that boot screen is done */
-    xTaskNotifyGive(network_task_handle);
+    // /* Signal network task that boot screen is done */
+    // xTaskNotifyGive(network_task_handle);
 
     for (;;)
     {

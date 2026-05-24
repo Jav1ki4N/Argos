@@ -9,7 +9,9 @@ class mDNS
 {
     public:
     mDNS()  = default;
-    ~mDNS() = default;
+    ~mDNS(){
+        stop();
+    }
 
     void start() {ESP_ERROR_CHECK(mdns_init());}
 

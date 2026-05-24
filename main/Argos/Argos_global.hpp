@@ -1,10 +1,14 @@
 
 #pragma once
 
+/* Includes */
+#include "network_global.hpp"
+
 /* Public includes */
 #include "ddc.hpp"
 #include "../network.hpp"
 #include "devices/ddc_encoder.hpp"
+#include "Argos_icons.hpp"
 #include <variant>
 
 
@@ -17,9 +21,10 @@ struct SystemState
      *  @param system_info sent from network task - parsed system infos
      *  @param input_event sent from encoder task - encoder events
      */
-          WIFI::WifiMsg wifi_msg;
-              ClientMsg system_info;
+          SystemInfoMsg system_info;
+    NetworkTaskStateMsg network_state;
     Encoder::EncoderMsg input_event;
+          WIFI::WifiMsg wifi_msg; 
     
     std::array<std::array<char,64>,3> profile_list;
 
@@ -42,6 +47,7 @@ struct SystemState
 
 enum class PageCommand : uint8_t
 {
+    // Reserved for page stack control
     None,
     Enter,
     Exit,
@@ -63,7 +69,7 @@ using Payload = std::variant<
     ProfilePayload
 >;
 
-struct PageMsg {
+struct UIMsg {
     PageCommand command = PageCommand::None;
         Payload payload = std::monostate{};
 };
@@ -103,6 +109,7 @@ struct HWINFO // Hardware info
 
         struct PAGE
         {
+            static constexpr uint8_t TEXT_GAP_FROM_LEFT = 5;
             static constexpr uint8_t LINE1 = 29;
             static constexpr uint8_t LINE2 = 42;
             static constexpr uint8_t LINE3 = 55;

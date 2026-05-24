@@ -24,7 +24,9 @@ class DNServer
 {
 public:
     DNServer() = default;
-    ~DNServer() = default;
+    ~DNServer(){
+        Stop();
+    }
 
     // void start()
     // {

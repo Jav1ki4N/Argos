@@ -157,8 +157,10 @@ The prototype version of this project and only used for testment. Some issues ar
 - [x] Implant LittleFS as file system
 - [x] Redirect to a captive portal on AP mode
 - [x] Get configuration profile from captive portal & Connect to target Wi-Fi
-- [ ] Support multiple profiles
+- [x] Support multiple profiles
 - [x] Use mDNS to auto-get target device's ip
 - [ ] Battey detection via ADC
+- [x] Make UI stack-driven
+- [ ] Rewrite Network Task FSM
 - [ ] ...
 

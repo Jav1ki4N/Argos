@@ -125,7 +125,7 @@ struct App_State
      /* WIFI Info */
 
     /* WIFI Info */
-    WIFI::WifiMsg::State wifi_state = WIFI::WifiMsg::Connecting; // in-class wifi state is defined as bits
+    WIFI::WifiMsg::State wifi_state = WIFI::WifiMsg::State::Connecting; // in-class wifi state is defined as bits
     char wifi_ssid[32] = {};                         // this one is defined in WifiMsg
 
     /* Time Info */
@@ -363,12 +363,12 @@ inline void UI_DrawPageWifi(u8g2_t *u8g2, const App_State& state)
     u8g2_SetDrawColor(u8g2, 1);
     static Animation<3> wifi_connecting_anime;
 
-    if (state.wifi_state == WIFI::WifiMsg::Failed)
+    if (state.wifi_state == WIFI::WifiMsg::State::Failed)
     {
         UI_DrawWifiIcon(u8g2, icon_wifi_no_connect);
         /* If failed, do not turn to Info cuz there's nothing */
     }
-    else if (state.wifi_state == WIFI::WifiMsg::Connecting)
+    else if (state.wifi_state == WIFI::WifiMsg::State::Connecting)
     {
         wifi_connecting_anime.update(WIFI_ANIMATION_INTERVAL);
         UI_DrawWifiIcon(u8g2, WIFI_CONNECTING_ICONS[wifi_connecting_anime.frame]);
