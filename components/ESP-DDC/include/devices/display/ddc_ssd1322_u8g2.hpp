@@ -4,7 +4,6 @@
 #include "hal/gpio_types.h"
 #include "soc/gpio_num.h"
 #include "../../thirdparty/ddc_u8g2.hpp"
-#include "UI/ddc_argos_u8g2.hpp"
 #include <stdint.h>
 
 class SSD1322 : public SPIDevice
@@ -39,11 +38,6 @@ class SSD1322 : public SPIDevice
         return &u8g2;
     }
 
-    App_State& get_UIAppState()
-    {
-        return app_state;
-    }
-
     protected:
 
     private:
@@ -59,8 +53,7 @@ class SSD1322 : public SPIDevice
 
     u8g2_hal  hal;
     u8g2_t    u8g2;
-    App_State app_state;
-
+    
     /* static callback for u8g2 */
     static uint8_t spi_byte_cb_static(u8x8_t* u8x8,
                                       uint8_t msg,

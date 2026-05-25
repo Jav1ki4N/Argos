@@ -31,12 +31,13 @@ class ArgosPage
      *  @param onEvent() handle encoder input events, behaved differently in each page 
     */
 
-    virtual void    draw(u8g2_t* u8g2, const SystemState& systate) = 0; // impl required
-    //virtual void    onEnter(){};
-    virtual void    onExit() = 0; // impl required
+    virtual void  draw(u8g2_t* u8g2, const SystemState& systate) = 0; // impl required
+    virtual void  onEnter(){}
+    virtual void  onExit() = 0; // impl required
     virtual UIMsg onEvent(Encoder::EncoderMsg msg, const SystemState& systate) = 0; // impl required
 
     protected:
+    bool inStack = false; // for root pages
     UIMsg makeEmptyMsg() const { UIMsg msg = {}; return msg; }
     private:
 };
@@ -49,52 +50,105 @@ class NetworkPage : public ArgosPage
     ~NetworkPage() override = default;
 
     void draw(u8g2_t* u8g2, const SystemState& systate) override {
+        using enum NetworkTaskStateMsg::WiFiState;
+        using enum NetworkTaskStateMsg::ChainStage;
+        using enum NetworkTaskStateMsg::ChainError;
         setPencilMode(u8g2, PencilMode::Solid);
-        
-        
+
+        const ICON& icon = (systate.network_msg.wifi_state == WS_Offline)
+                         ? ICON_WIFI_NO_CONNECT
+                         : ICON_WIFI_CONNECTED;
+
+        uint8_t icon_x = 3 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
+        uint8_t icon_y = (((HWINFO::WEIGHT - STATIC::NAV::NAV_BAR_HEIGHT) - icon.height) >> 1)
+                       + STATIC::NAV::NAV_BAR_HEIGHT;
+        u8g2_DrawXBMP(u8g2, icon_x, icon_y, icon.width, icon.height, icon.data);
+
+        {
+            u8g2_DrawStr(u8g2, TEXT_X, STATIC::PAGE::LINE3,     "Setting: [PROFILES]");
+            if(inStack) {
+                setPencilMode(u8g2, PencilMode::Invert);
+                u8g2_DrawBox(u8g2, 
+                TEXT_X + u8g2_GetStrWidth(u8g2,"Settings: ")-4,  
+                (STATIC::PAGE::LINE3 - 8), 
+                u8g2_GetStrWidth(u8g2,"[PROFILES]") - 4,  
+                u8g2_GetFontAscent(u8g2) + u8g2_GetFontDescent(u8g2) + 4);
+            }
+            wifi_state  = systate.network_msg.wifi_state;
+            error       = systate.network_msg.error;
+            chain_stage = systate.network_msg.chain_stage;
+            
+            makeHint(u8g2);
+        }
     }
 
     UIMsg onEvent(Encoder::EncoderMsg msg, const SystemState& systate) override {
         UIMsg page_msg = {};
-        /* Click or leave */
-        if      ( msg == EncoderMsg::ButtonPressed ) page_msg.command = PageCommand::Enter; // to profile page
-        else if ( msg == EncoderMsg::ButtonHeld )    page_msg.command = PageCommand::Exit;  // exit stack
+        if      ( msg == EncoderMsg::ButtonPressed ) page_msg.command = PageCommand::PC_Enter;
+        else if ( msg == EncoderMsg::ButtonHeld )    page_msg.command = PageCommand::PC_Exit;
         return page_msg;
     }
-
-    void onExit() override {}
+    void onEnter() override {
+        inStack = true;
+    }
+    void onExit() override {
+        inStack = false;
+    }
 
     private:
 
-    //uint8_t cursor = 0; no need, only one clickable item in this page
+    NetworkTaskStateMsg::WiFiState  wifi_state;
+    NetworkTaskStateMsg::ChainError error;
+    NetworkTaskStateMsg::ChainStage chain_stage;
 
-    /* Placement */
-    static constexpr uint8_t TEXT_X = 75; // assigns with 'INFO' tab
-    // static constexpr uint8_t WIFI_LOGO_X = ;
-    // static constexpr uint8_t WIFI_LOGO_Y = ;
-    
-    /* Wifi Status in LINE1 */
-    std::string_view wifi_offline = "OFFLINE",
-                     wifi_sta     = "STA |",       // + ssid
-                     wifi_ap      = "AP  | Argos"; // fixed ssid 
+    static constexpr std::string_view wifi_hint(NetworkTaskStateMsg::WiFiState s) {
+        using enum NetworkTaskStateMsg::WiFiState;
+        switch (s) {
+            case WS_Offline:        return "Network: [OFFLINE]";
+            case WS_AP:             return "Network: [SOFTAP]";
+            case WS_STAConnecting:  return "Network: [STA CONNECTING]";
+            case WS_STAConnected:   return "Network: [STA CONNECTED]";
+            default:                return "";
+        }
+    }
 
-    /* Prompts on LINE2 */
-    /* Pain in the arse to get these messages from network services */
-    std::string_view prompt_idle          = "No profile loaded",         
-                     prompt_cp            = "Captive Portal Launched",   
-                     prompt_save          = "Saving Profile...",         
-                     prompt_load          = "Loading Profile...",        
-                     prompt_connect       = "Connecting to WiFi...",     
-                     prompt_search        = "Searching for target...",   
-                     prompt_done          = "Target device connected";   
-    std::string_view prompt_e_exceed      = "E: Profile slot is full",   
-                     prompt_e_wifi        = "E: Failed to connect WiFi", 
-                     prompt_e_target      = "E: Failed at targeting";    
-    
-    /* Buttons on LINE3 */
-    std::string_view btn_profile_text = "Profile Configuration"; 
+    static constexpr std::string_view chain_hint(NetworkTaskStateMsg::ChainStage s) {
+        using enum NetworkTaskStateMsg::ChainStage;
+        switch (s) {
+            case CS_Idle:            return "Status:  [IDLE]";
+            case CS_LoadingProfile:  return "Status:  [LOADING PROFILE]";
+            case CS_TargetDiscovery: return "Status:  [TARGET DISCOVERY]";
+            case CS_ReceivingInfo:   return "Status:  [RECEIVING INFO]";
+            case CS_AddProfile:      return "Status:  [ADDING PROFILE]";
+            case CS_CaptivePortal:   return "Status:  [CAPTIVE PORTAL]";
+            case CS_SavingProfile:   return "Status:  [SAVING PROFILE]";
+            default:                 return "";
+        }
+    }
 
+    static constexpr std::string_view error_hint(NetworkTaskStateMsg::ChainError e) {
+        using enum NetworkTaskStateMsg::ChainError;
+        switch (e) {
+            case E_FailedToOpenProfile: return "Failed:  [OPEN PROFILE]";
+            case E_FailedToReadProfile: return "Failed:  [READ PROFILE]";
+            case E_FailedToConnectWiFi: return "Failed:  [CONNECT WIFI]";
+            case E_TargetNotFound:      return "Failed:  [TARGET NOT FOUND]";
+            case E_TargetLost:          return "Failed:  [TARGET LOST]";
+            case E_FailedToParseInfo:   return "Failed:  [PARSE INFO]";
+            case E_ProfileSlotFull:     return "Failed:  [PROFILE FULL]";
+            default:                    return "";
+        }
+    }
 
+    void makeHint(u8g2_t *u8g2){
+        u8g2_DrawStr(u8g2, TEXT_X, STATIC::PAGE::LINE1, wifi_hint(wifi_state).data());
+        u8g2_DrawStr(u8g2, TEXT_X, STATIC::PAGE::LINE2, 
+        (chain_stage == NetworkTaskStateMsg::ChainStage::CS_Idle &&
+         error == NetworkTaskStateMsg::ChainError::E_None) 
+        ? chain_hint(chain_stage).data() : error_hint(error).data());
+    }
+
+    static constexpr uint8_t TEXT_X = 75;
 };
 
 /**
@@ -113,16 +167,32 @@ class ProfilePage : public ArgosPage
 
     void draw(u8g2_t* u8g2, const SystemState& systate) override {
         setPencilMode(u8g2, PencilMode::Solid);
+        u8g2_SetFont(u8g2, FONT::BASE_FONT);
 
-        const uint8_t available_height = HWINFO::WEIGHT - STATIC::NAV::NAV_BAR_HEIGHT;
-        const uint8_t used_height = (Slot::MAX_NUM * Slot::HEIGHT) + ((Slot::MAX_NUM - 1) * Slot::GAP_BETWEEN_EACH);
-        const uint8_t top_gap = (available_height - used_height) / 2;
-        const uint8_t start_y = STATIC::NAV::NAV_BAR_HEIGHT + top_gap;
+        const uint8_t font_h = u8g2_GetAscent(u8g2) - u8g2_GetDescent(u8g2);
+        const uint8_t bracket_x = 3 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
+        const uint8_t frame_x   = HWINFO::WIDTH / 2;
+        const uint8_t frame_w   = HWINFO::WIDTH - frame_x - STATIC::PAGE::TEXT_GAP_FROM_LEFT;
+        const uint8_t frame_y   = STATIC::PAGE::LINE1 - u8g2_GetAscent(u8g2);
+        const uint8_t frame_h   = (STATIC::PAGE::LINE3 - STATIC::PAGE::LINE1) + font_h;
 
-        for(uint8_t i = 0; i < Slot::MAX_NUM; ++i) {
-            const uint8_t frame_y = start_y + i * (Slot::HEIGHT + Slot::GAP_BETWEEN_EACH);
-            u8g2_DrawFrame(u8g2, Slot::GAP_FROM_LEFT, frame_y, Slot::WIDTH, Slot::HEIGHT);
+        for (uint8_t i = 0; i < Slot::MAX_NUM; ++i) {
+            const uint8_t y = STATIC::PAGE::LINE1 + i * (STATIC::PAGE::LINE2 - STATIC::PAGE::LINE1);
+            const char* text = (systate.profile_list[i].data()[0])
+                             ? systate.profile_list[i].data()
+                             : "[  ]";
+            bool is_cursor = (mode == MenuMode::Slot && slot.cursor == i);
+            if (is_cursor) {
+                u8g2_SetDrawColor(u8g2, 1);
+                u8g2_DrawBox(u8g2, bracket_x - 1, y - u8g2_GetAscent(u8g2),
+                             frame_x - bracket_x, font_h);
+                u8g2_SetDrawColor(u8g2, 0);
+            }
+            u8g2_DrawStr(u8g2, bracket_x, y, text);
+            if (is_cursor) u8g2_SetDrawColor(u8g2, 1);
         }
+
+        u8g2_DrawFrame(u8g2, frame_x, frame_y, frame_w, frame_h);
     }
 
     UIMsg onEvent(Encoder::EncoderMsg msg, const SystemState& systate) override {
@@ -155,13 +225,13 @@ class ProfilePage : public ArgosPage
                 ProfilePayload payload;
                 UIMsg msg = {};
 
-                if(slot.isEmpty)msg.command = PageCommand::AddProfile;
+                if(slot.isEmpty)msg.command = PageCommand::PC_AddProfile;
                 else {
                     strlcpy(payload.profile_name, 
                             systate.profile_list[slot.cursor].data(), 
                             sizeof(payload.profile_name));
-                    msg.command = (option.cursor == 0) ? PageCommand::LoadProfile : 
-                                                         PageCommand::DeleteProfile;
+                    msg.command = (option.cursor == 0) ? PageCommand::PC_LoadProfile : 
+                                                         PageCommand::PC_DeleteProfile;
                     msg.payload = payload;
                 }
                 /* auto exit  */
@@ -175,7 +245,7 @@ class ProfilePage : public ArgosPage
             if(mode == MenuMode::Option)mode = MenuMode::Slot;
 
             /* Exit Profile Page */
-            else return UIMsg{PageCommand::Exit, std::monostate{}};
+            else return UIMsg{PageCommand::PC_Exit, std::monostate{}};
         } 
         return makeEmptyMsg();
     }
@@ -197,16 +267,11 @@ class ProfilePage : public ArgosPage
         bool isEmpty = false;
         uint8_t cursor = 0;
         static constexpr uint8_t MAX_NUM = 3;
-        static constexpr uint8_t GAP_FROM_LEFT    = 10;
-        static constexpr uint8_t GAP_BETWEEN_EACH = 3;
-        static constexpr uint8_t WIDTH            = 110;
-        static constexpr uint8_t HEIGHT           = 11;
     }slot;
     struct Option{
         uint8_t cursor = 0;
         static constexpr uint8_t MAX_NUM = 2;
-
-    }option;                                         
+    }option;
 };
 
 class InfoPage : public ArgosPage
@@ -223,7 +288,7 @@ class InfoPage : public ArgosPage
     UIMsg onEvent(Encoder::EncoderMsg msg, const SystemState& systate) override {
         UIMsg page_msg = {};
         if (msg == EncoderMsg::ButtonHeld)
-            page_msg.command = PageCommand::Exit;
+            page_msg.command = PageCommand::PC_Exit;
         return page_msg;
     }
 
@@ -232,6 +297,7 @@ class InfoPage : public ArgosPage
     private:
 };
 
+/* STABLE VERSION DO NOT MODIFY */
 class AboutPage : public ArgosPage
 {
     public:
@@ -256,7 +322,7 @@ class AboutPage : public ArgosPage
     UIMsg onEvent(Encoder::EncoderMsg msg, const SystemState& systate) override {
         UIMsg page_msg = {};
         if (msg == EncoderMsg::ButtonHeld)
-            page_msg.command = PageCommand::Exit;
+            page_msg.command = PageCommand::PC_Exit;
         return page_msg;
     }
 

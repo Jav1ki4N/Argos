@@ -26,11 +26,14 @@ void UI_Task(void *arg)
     
     /** Queue Initialization
      *  @param enc_task_q Queue for receiving encoder events from input task
-     *
      *  @param network_task_command_q Queue for sending commands to network task
+     *  @note  wait network task's notification before assigning queues handles
      */
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
     framework.setEncoderQueueHandle(enc_task_q);
-    framework.setNetworkTaskCommandQueue(ui2network_command_q);
+    ui2network_command_q = framework.getNetworkTaskCommandQueue();
+    xTaskNotifyGive(network_task_handle);
     
     for (;;)
     {

@@ -2,7 +2,7 @@
 #pragma once
 
 /* Includes */
-#include "network_global.hpp"
+#include "network.hpp"
 
 /* Public includes */
 #include "ddc.hpp"
@@ -22,9 +22,8 @@ struct SystemState
      *  @param input_event sent from encoder task - encoder events
      */
           SystemInfoMsg system_info;
-    NetworkTaskStateMsg network_state;
-    Encoder::EncoderMsg input_event;
-          WIFI::WifiMsg wifi_msg; 
+    NetworkTaskStateMsg network_msg;
+    Encoder::EncoderMsg enc_msg;
     
     std::array<std::array<char,64>,3> profile_list;
 
@@ -48,17 +47,14 @@ struct SystemState
 enum class PageCommand : uint8_t
 {
     // Reserved for page stack control
-    None,
-    Enter,
-    Exit,
-    // Network Page
-    // Profile Page
-    LoadProfile,
-    AddProfile,
-    DeleteProfile,
-    // Info Page
-    AddtoGraph,
-    // About Page
+    PC_None,
+    PC_Enter,
+    PC_Exit,
+    // To network task
+    PC_LoadProfile,
+    PC_AddProfile,
+    // Reserved
+    PC_DeleteProfile,
 };
 
 // Load & Delete profile <profile_name>
@@ -70,7 +66,7 @@ using Payload = std::variant<
 >;
 
 struct UIMsg {
-    PageCommand command = PageCommand::None;
+    PageCommand command = PageCommand::PC_None;
         Payload payload = std::monostate{};
 };
 

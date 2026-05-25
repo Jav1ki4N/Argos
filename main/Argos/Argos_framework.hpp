@@ -26,12 +26,17 @@ class ArgosFramework
     
     explicit ArgosFramework(SSD1322 &display):
     u8g2(display.get_U8g2())
-    {}
+    {
+        ui2network_command_q = xQueueCreate(3, sizeof(UIMsg));
+    }
     ~ArgosFramework() = default;
 
+    /** Queue Handle Setters & getters
+     *  @brief Set queue handles for receiving messages from other tasks
+     *  @note  Passed queue handles must be global 
+     */
     void setEncoderQueueHandle(QueueHandle_t encmsg_q) { encoder_msg_q = encmsg_q; }
-    void setWifiQueueHandle(QueueHandle_t wifi_q)      { wifi_msg_q = wifi_q; }
-    void setNetworkTaskCommandQueue(QueueHandle_t queue) { network_task_command_q = queue;}
+    QueueHandle_t getNetworkTaskCommandQueue() { return ui2network_command_q; }
 
     void render() {
         updateSystemState(system_state);
@@ -51,17 +56,18 @@ class ArgosFramework
             active_root_page = manager.root_pages[system_state.focus_tab];
 		    
             /* Enter Stack */
-		    if(system_state.input_event == ButtonPressed) {
+		    if(system_state.enc_msg == ButtonPressed) {
                 system_state.isEnterStack = true;                               // Enable page stack
                 manager.active_stack = &manager.stacks[system_state.focus_tab]; // Set active stack
                 manager.active_stack->curr_depth = 0;                           // preview mode curr_depth is 0
                 manager.active_stack->push(active_root_page);                   // Push current root page to the top
+                active_root_page->onEnter();
             }
 
             /* Browse between root pages */
-		    else if(system_state.input_event == RotateLeft || 
-                    system_state.input_event == RotateRight ) {
-                system_state.focus_tab = (system_state.input_event == RotateRight) ?
+		    else if(system_state.enc_msg == RotateLeft || 
+                    system_state.enc_msg == RotateRight ) {
+                system_state.focus_tab = (system_state.enc_msg == RotateRight) ?
                                          ((system_state.focus_tab + 1) % 3):
                                          ((system_state.focus_tab + 2) % 3);
             }
@@ -76,16 +82,16 @@ class ArgosFramework
 	    else {
             ArgosPage* active_page = manager.active_stack->top(); // Get current page from stack's top
             /* Handle message from encoder */
-            if(system_state.input_event != EncoderMsg::None) {
-                PageMsg msg_from_page = active_page->onEvent(system_state.input_event, system_state); // call top page's onEvent
+            if(system_state.enc_msg != EncoderMsg::None) {
+                UIMsg msg_from_page = active_page->onEvent(system_state.enc_msg, system_state); // call top page's onEvent
                                                                                                       // and receive message
                 /* Page intents to enter its subpage */
-                if(msg_from_page.command == PageCommand::Enter) {
-                    // e.g. <root_page,curr_depth = 1> --> order[1] = subpage1                                                 
+                if(msg_from_page.command == PageCommand::PC_Enter) {
                     manager.active_stack->push(manager.active_stack->order[manager.active_stack->curr_depth]);
+                    manager.active_stack->top()->onEnter();
                 }
                 /* Page intents to exit */
-                else if (msg_from_page.command == PageCommand::Exit) {
+                else if (msg_from_page.command == PageCommand::PC_Exit) {
                     if(manager.active_stack->curr_depth == 1)system_state.isEnterStack = false; // Exit from a root page is to exit the stack                         
                     active_page->onExit();                                                      // Call current page's onExit for cleanup
                     manager.active_stack->pop();                                                // Pop the current page from stack
@@ -114,26 +120,25 @@ class ArgosFramework
     QueueHandle_t wifi_msg_q;
 
     /* Queue sent to tasks */
-    QueueHandle_t network_task_command_q;
+    QueueHandle_t ui2network_command_q;
 
     
 
     /**
      * @brief Update system state before each frame render.
+     * @note  2 message need to receive in total
+     *        @param enc_msg user input from encoder
+     *        @param network_msg network state from network task
      */
     void updateSystemState(SystemState &systate) {
         using enum Encoder::EncoderMsg;
         EncoderMsg enc_msg;
-        if (xQueueReceive(encoder_msg_q, &enc_msg, 0) == pdTRUE) systate.input_event = enc_msg;
-        else                                                     systate.input_event = EncoderMsg::None;
+        if (xQueueReceive(encoder_msg_q, &enc_msg, 0) == pdTRUE) systate.enc_msg = enc_msg;
+        else                                                     systate.enc_msg = EncoderMsg::None;
 
-        WIFI::WifiMsg wifi_msg;
-        while (xQueueReceive(wifi_msg_q, &wifi_msg, 0) == pdTRUE) systate.wifi_msg = wifi_msg;
-
-        NetworkTaskChain network_stage;
-        if (xQueueReceive(network2ui_state_q, &network_stage, 0) == pdTRUE) 
-            systate.network_stage = network_stage;
-
+        NetworkTaskStateMsg network_msg;
+        if (xQueueReceive(network2ui_state_q, &network_msg, 0) == pdTRUE) 
+            systate.network_msg = network_msg;
     }
 
     struct PageStack
@@ -305,18 +310,16 @@ class ArgosFramework
      * Command Handler
      * @brief Handler for commands sent from Pages 
      */
-     void commandDispatcher(const PageMsg& msg) {
+     void commandDispatcher(const UIMsg& msg) {
         using enum PageCommand;
         switch (msg.command) {
             /* Handled by Network Task */
-            case LoadProfile:   
-            case AddProfile:    
-            case DeleteProfile: {
-                network_task_command_q = xQueueCreate(3, sizeof(PageMsg));
-                xQueueSend(network_task_command_q, &msg, 0);
+            case PC_LoadProfile:   
+            case PC_AddProfile:    
+            case PC_DeleteProfile: {
+                xQueueSend(ui2network_command_q, &msg, 0);
             }
             /* Handled by UI framework, no queue needed */
-            case AddtoGraph:    { break;}
             default: break;
         }
      }

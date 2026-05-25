@@ -40,7 +40,7 @@ C-->|POST request|B
 B-->|auto switch|D[Argos: STA & HTTP Client]
 D-->|GET request|A
 A-->|JSON|D
-D-->|Parsed Info|E[Argos: Display]
+D-->|Parsed Info|E[Argos: UI]
 F[Argos: Encoder]-->|Input Events|E
 ```
 
@@ -160,7 +160,8 @@ The prototype version of this project and only used for testment. Some issues ar
 - [x] Support multiple profiles
 - [x] Use mDNS to auto-get target device's ip
 - [ ] Battey detection via ADC
-- [x] Make UI stack-driven
-- [ ] Rewrite Network Task FSM
+- [x] stack-driven FSM for UI
+- [x] Rewrite Network Task FSM
+- [ ] Rewrite UI 
 - [ ] ...
 
