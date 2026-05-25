@@ -2,166 +2,216 @@
 
 [中文](./readme_zh.md) | **English**
 
-![Static Badge](https://img.shields.io/badge/ESP--IDF-5.5.4-none?logo=espressif&color=%23E7352C)
+![ESP-IDF](https://img.shields.io/badge/ESP--IDF-5.5.4-none?logo=espressif&color=%23E7352C)
 
-## About this project
+---
 
-**Argos** (*Ἄργος*) is a ESP32C3-powered system monitor that displays host system information on a `256*64` OLED screen:
-- **Hostname** 
-- **CPU Info**: Core Frequency & Temperature / Threads & Cores
-- **Memory Info**: Total / Used / Usage Percentage
-- **Disk Info**: Total / Used / Usage Percentage
-- **OS**: Type / Distro & Version
-- **Time**: UTC / Local
+## About
+
+**Argos** (*Ἄργος*) is an ESP32-C3-powered system monitor that displays real‑time host metrics on a `256×64` OLED screen:
+
+| Category     | Metrics                                      |
+| ------------ | -------------------------------------------- |
+| **Hostname** | System hostname                              |
+| **CPU**      | Frequency, temperature, threads, core count  |
+| **Memory**   | Total, used, usage %                         |
+| **Disk**     | Total, used, usage %                         |
+| **OS**       | Type, distro, version                        |
+| **Clock**    | UTC and local time                           |
+
+### Profiles
+
+Save named configuration profiles to Argos and load them on demand. Each profile stores Wi‑Fi credentials, NTP server settings, and more. Delete profiles you no longer need directly from the device.
 
 ---
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/Argos.jpg" width="600">
-  <img src="https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/argos_example.gif" width="600">
+  <img src="https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/Argos.jpg" width="600" alt="Argos device">
+  <img src="https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/argos_example.gif" width="600" alt="Argos demo">
+  <p><em>Argos in action</em></p>
 </div>
 
+---
 
-
-## How it works
+## How It Works
 
 Argos has two components:
 
-1. **A PC-side agent** (`./run_server`) — a binary that collects system metrics (CPU, memory, disk, OS info) and exposes them as a `JSON` HTTP endpoint on port `8080`.
+1. **PC-side agent** (`./run_server`) — a binary that collects system metrics (CPU, memory, disk, OS) and exposes them as a JSON HTTP endpoint on port `8080`.
 
-2. **An ESP32 device** — connects to the same Wi-Fi network, polls the agent's `/api/info` endpoint every second, parses the JSON response, and renders the data on the OLED display.
+2. **ESP32 device** — connects to the same Wi‑Fi network, polls `/api/info` every second, parses the JSON response, and renders the data on the OLED display.
 
 ```mermaid
 graph TD
-A[Target Device: 
-Launch Server Service]
-B[Argos:SoftAP & HTTP Server]-->|Launch|C[Captive Portal]
-C-->|POST request|B
-B-->|auto switch|D[Argos: STA & HTTP Client]
-D-->|GET request|A
-A-->|JSON|D
-D-->|Parsed Info|E[Argos: UI]
-F[Argos: Encoder]-->|Input Events|E
+  A["Target Device<br/>Run Server"]
+  B["Argos: SoftAP<br/>& HTTP Server"]
+  C["Captive Portal"]
+  D["Argos: STA<br/>& HTTP Client"]
+  E["Argos: UI"]
+  F["Argos: Encoder"]
+
+  B -->|"launch"| C
+  C -->|"POST config"| B
+  B -->|"switch to STA"| D
+  D -->|"GET /api/info"| A
+  A -->|"JSON"| D
+  D -->|"parsed data"| E
+  F -->|"input events"| E
 ```
+
+---
+
+## Components
+
+### Firmware (ESP32)
+
+**[`ESP-DDC`](./components/ESP-DDC)** is the project's own custom component — it contains all of Argos' firmware logic and is the only one tracked in git. The remaining components are third‑party, **gitignored**, and must be obtained before building:
+
+| Component                                                    | Source                                                                 | Purpose                         |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------- | ------------------------------- |
+| [u8g2](https://github.com/olikraus/u8g2)                     | `git clone https://github.com/olikraus/u8g2.git components/u8g2`       | OLED graphics (SSD1322 via SPI) |
+| [esp_littlefs](https://github.com/joltwallet/esp_littlefs)   | `git clone https://github.com/joltwallet/esp_littlefs.git components/esp_littlefs` | Fail‑safe flash filesystem      |
+| [espressif__mdns](https://github.com/espressif/esp-protocols)| `git clone https://github.com/espressif/esp-protocols.git components/espressif__mdns` | mDNS service discovery          |
+
+```bash
+# One‑liner to clone all missing components:
+git clone https://github.com/olikraus/u8g2.git components/u8g2
+git clone https://github.com/joltwallet/esp_littlefs.git components/esp_littlefs
+git clone https://github.com/espressif/esp-protocols.git components/espressif__mdns
+```
+
+**ESP‑IDF framework** — provided by the SDK:
+
+`driver` · `esp_wifi` · `nvs_flash` · `esp_http_client` · `esp_http_server` · `esp_timer` · `esp_netif` · `mdns` · `cJSON` · `esp_event` · `freertos` · `lwip`
+
+> Requires **ESP‑IDF ≥ 5.0**.
+
+### PC Agent
+
+Cross‑platform Python server; see [Deployment](#1-pc-agent-server) for setup.
+
+| Package                                                           | Version |
+| ----------------------------------------------------------------- | ------- |
+| [Flask](https://github.com/pallets/flask)                         | 3.1.3   |
+| [psutil](https://github.com/giampaolo/psutil)                     | 7.2.2   |
+| [zeroconf](https://github.com/jstasiak/python-zeroconf)           | 0.149.7 |
+
+---
 
 ## Deployment
 
 ### 1. PC Agent (Server)
 
-A `run_server.py` script is provided under the `/linux` directory to launch the server service on the target device.
+A `run_server.py` script is provided under [`./linux`](./linux) to launch the server on the target machine.
 
 ```bash
 git clone https://github.com/Jav1ki4N/Argos.git
-```
-
-```bash
 cd linux
 ./run_server.py
 ```
 
-If you do not have all the dependencies installed, you can also execute the `run_server` binary file, which has already been compiled and packaged in a Linux environment:
+A pre‑compiled `run_server` binary is also available for Linux:
 
-```
+```bash
 ./run_server
 ```
 
-For Windows users, compiling the Python file yourself is required, as a pre-built Windows binary is currently a TODO.
+Windows users must compile from source for now — a pre‑built Windows binary is planned.
 
-Once running, verify the endpoint is reachable:
+**Verify the endpoint:**
 
 ```bash
 curl http://$(hostname -I | awk '{print $1}'):8080/api/info
 ```
 
-*Dependencies:
-
-```
-Package                   Version
-------------------------- -------
-Flask                     3.1.3
-psutil                    7.2.2
-zeroconf                  0.149.7
-```
+See [Components](#pc-agent) for Python dependency details.
 
 ### 2. Captive Portal
 
-The ESP32 is initialized as a SoftAP (Access Point) for your device to connect to. Once connected, a DNS server launches to redirect all DNS queries to a **captive portal** stored in the ESP32's flash memory. You can then fill out a **configuration profile** that contains the following parameters:
+The ESP32 starts as a SoftAP. Connect your device to it and a DNS server redirects all queries to a **captive portal** hosted on the ESP32's flash. From there you fill in a configuration profile:
 
-- **`SSID`** - The SSID of the target Wi-Fi network.
-- **`Password`** - The password for the target Wi-Fi network.
-- **`NTP Server`** - The Network Time Protocol (NTP) server.
-- **`ProfileName`** - The name of this configuration profile (defaults to **SSID**).
+| Field          | Description                              |
+| -------------- | ---------------------------------------- |
+| **SSID**       | Target Wi‑Fi network SSID                |
+| **Password**   | Target Wi‑Fi network password            |
+| **NTP Server** | Network Time Protocol server             |
+| **ProfileName**| Profile name (defaults to SSID)          |
 
-![](https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/captive_portal.png)
 <div align="center">
-<p style="font-style: italic;">Captive Portal</p>
+  <img src="https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/captive_portal.png" alt="Captive Portal screenshot">
+  <p><em>Captive Portal</em></p>
 </div>
-After that, the ESP32 switches to STA mode and locates the target device's IP address and target URL via mDNS. By sending a GET request, the ESP32 receives the system info as a JSON object, which it then parses to populate an information structure.
+
+After saving, the ESP32 switches to STA mode and locates the target device via **mDNS**. A `GET` request fetches the system info JSON, which is parsed and rendered on the display.
+
+---
 
 ## PCB
 
 ### Prototype
 
-The prototype version of this project and only used for testment. Some issues are:
+The prototype revision — built for testing — has several known issues:
 
-- Internal on board USB should not be exposed to user in case dual powering path damages the soc and other components.
-- External USB should be connected to the on board USB's `D+` and `D-` so that programs can be flashed via external.
-- Charing & Charge fininsh LED seems to not behave properly. Also, when powered only by the battery there's no LED to indicate any states.
-- The 5V boost circuit of ETA9697 is not used and the `1.7`v voltage drop cause extra heat generation on ME6231.
-- Consider replacing the display module with a custom PCB, as it's hard to be universally used and maintain.
-- ADC is not precise for getting battery state
-- Terrible silkscreen printing..
-
-![](https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/argos_top.png)
-<div align="center">
-<p style="font-style: italic;">Top view</p>
-</div>
-
-![](https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/argos_bottom.png)
-<div align="center">
-<p style="font-style: italic;">Bottom view</p>
-</div>
+- On‑board USB should not be exposed to the user; dual power paths risk damaging the SoC.
+- External USB should be wired to the on‑board USB `D+`/`D-` lines so firmware can be flashed externally.
+- Charge and charge‑complete LEDs behave incorrectly. No LED indicates state when running on battery alone.
+- The ETA9697 5 V boost circuit is unused; the 1.7 V dropout causes excess heat on the ME6231 LDO.
+- The display module should be replaced with a custom PCB for better maintainability and fit.
+- ADC battery measurement is imprecise.
+- Silkscreen quality is poor.
 
 <div align="center">
-
-| Name             | Type               | Value              | Quantity |
-| ---------------- | ------------------ | ------------------ | -------- |
-| ESP32C3SuperMini | MCU/SOC            | ESP32C3            | 1        |
-| Encoder          | Physical Input     | SIQ-02FVS3         | 1        |
-| Pin Header       | Connector          | 2*8p               | 1        |
-| Power Switch     | Switch             | MSKT-12D14         | 1        |
-| USB              | USB                | USB Type-C 16p     | 1        |
-| LED              | LED                | 0603               | 2        |
-| R1,R2            | Resistor           | 0603 1kohm         | 2        |
-| R3,R4            | Resistor           | 0603 100kohm       | 2        |
-| R11,R10          | Resistor           | 0603 5.1kohm       | 2        |
-| L1               | Inductor           | 2R2 2.2uh          | 1        |
-| C1,C2,C3,C4,C5   | Capacitor          | 0603 10uf          | 5        |
-| C6,C7            | Capacitor          | 0603 0.1uf         | 2        |
-| C8               | Capacitor          | 0603 1uf           | 1        |
-| ETA9697          | Battery Charing IC | ETA9697E8A         | 1        |
-| ME6231           | LDO                | ME6231C33M5G       | 1        |
-| Battery          | Battery            | Li-Po,60x30x48mm   | 1        |
-| Display          | Display Module     | SER3.12-D, SSD1322 | 1        |
-
-<p style="font-style: italic;">BOM</p>
+  <img src="https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/argos_top.png" alt="PCB top view">
+  <p><em>Top view</em></p>
+  <br/>
+  <img src="https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/argos_bottom.png" alt="PCB bottom view">
+  <p><em>Bottom view</em></p>
 </div>
 
+### Bill of Materials
 
-## TODO
+<div align="center">
 
-- [x] Get system information correctly
-- [x] Switch platform to ESP32C3
-- [x] Design a PCB and verify it functional
-- [x] Write a driver for encoder
-- [x] Implant LittleFS as file system
-- [x] Redirect to a captive portal on AP mode
-- [x] Get configuration profile from captive portal & Connect to target Wi-Fi
-- [x] Support multiple profiles
-- [x] Use mDNS to auto-get target device's ip
-- [ ] Battey detection via ADC
-- [x] stack-driven FSM for UI
-- [x] Rewrite Network Task FSM
-- [ ] Rewrite UI 
-- [ ] ...
+| Name                    | Type                 | Value              | Qty |
+| ----------------------- | -------------------- | ------------------ | --- |
+| ESP32C3SuperMini        | MCU / SoC            | ESP32-C3           | 1   |
+| Encoder                 | Input                | SIQ-02FVS3         | 1   |
+| Pin Header              | Connector            | 2×8p               | 1   |
+| Power Switch            | Switch               | MSKT-12D14         | 1   |
+| USB                     | Connector            | USB Type‑C 16p     | 1   |
+| LED                     | LED                  | 0603               | 2   |
+| R1, R2                  | Resistor             | 0603 1 kΩ          | 2   |
+| R3, R4                  | Resistor             | 0603 100 kΩ        | 2   |
+| R10, R11                | Resistor             | 0603 5.1 kΩ        | 2   |
+| L1                      | Inductor             | 2.2 µH             | 1   |
+| C1–C5                   | Capacitor            | 0603 10 µF         | 5   |
+| C6, C7                  | Capacitor            | 0603 0.1 µF        | 2   |
+| C8                      | Capacitor            | 0603 1 µF          | 1   |
+| ETA9697                 | Battery Charging IC  | ETA9697E8A         | 1   |
+| ME6231                  | LDO                  | ME6231C33M5G       | 1   |
+| Battery                 | Battery              | Li‑Po 60×30×48 mm | 1   |
+| Display                 | Display Module       | SER3.12‑D, SSD1322 | 1   |
 
+<p><em>Bill of Materials</em></p>
+
+</div>
+
+---
+
+## Roadmap
+
+- [x] System information collection
+- [x] Platform migration to ESP32‑C3
+- [x] PCB design and validation
+- [x] Encoder driver
+- [x] LittleFS integration
+- [x] Captive portal on AP mode
+- [x] Configuration profiles via captive portal
+- [x] Multi‑profile support
+- [x] mDNS auto‑discovery of target device
+- [x] Stack‑based UI FSM
+- [x] Network task FSM rewrite
+- [ ] Battery monitoring via ADC
+- [ ] UI rewrite
+- [ ] Offline time acquisition
+- [ ] …
