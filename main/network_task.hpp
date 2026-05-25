@@ -350,12 +350,12 @@ class NetworkTask {
         using enum NetworkTaskStateMsg::ChainStage;
         using enum NetworkTaskStateMsg::ChainError;
         using enum NetworkTaskStateMsg::WiFiState;
+        state_msg.wifi_state  = WS_AP;
+        strlcpy(state_msg.wifi_ssid, AP_SSID.data(), sizeof(state_msg.wifi_ssid));
+        state_msg.chain_stage = CS_AddProfile;
+        state_msg.error       = E_None;
         if (wifi.getCurrentMode() != WIFI::Mode::SoftAP) {
             wifi.start(WIFI::Mode::SoftAP, AP_SSID.data(), AP_PASSWORD.data());
-            state_msg.wifi_state  = WS_AP;
-            strlcpy(state_msg.wifi_ssid, AP_SSID.data(), sizeof(state_msg.wifi_ssid));
-            state_msg.chain_stage = CS_AddProfile;
-            state_msg.error       = E_None;
             queueSendNetworkState();
             return;                                                                    // wait next tick for SoftAP ready
         }
@@ -381,6 +381,8 @@ class NetworkTask {
             return;                                                                    // wait next tick for handler
         }
         if (isSaved) {
+            state_msg.chain_stage = CS_Idle;
+            state_msg.error       = E_None;
             state_msg.wifi_state  = WS_Offline;
             state_msg.wifi_ssid[0] = '\0';
             pending_chain = ChainIdle{};

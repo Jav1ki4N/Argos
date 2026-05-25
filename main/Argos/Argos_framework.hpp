@@ -10,6 +10,7 @@
 #include "ddc.hpp"
 
 /* C/C++ */
+#include <memory>
 #include <time.h>
 
 /* Tasks */
@@ -137,8 +138,29 @@ class ArgosFramework
         else                                                     systate.enc_msg = EncoderMsg::None;
 
         NetworkTaskStateMsg network_msg;
-        if (xQueueReceive(network2ui_state_q, &network_msg, 0) == pdTRUE) 
+        if (xQueueReceive(network2ui_state_q, &network_msg, 0) == pdTRUE)
             systate.network_msg = network_msg;
+
+        /* Refresh profile list from LittleFS */
+        for (auto& p : systate.profile_list) p[0] = '\0';
+        auto dir = std::unique_ptr<DIR, decltype(&closedir)>{opendir("/lfs/profile"), closedir};
+        if (dir) {
+            uint8_t i = 0;
+            while (dirent* entry = readdir(dir.get())) {
+                if (!std::string_view{entry->d_name}.ends_with(".txt")) continue;
+                std::string name(entry->d_name);
+                name.resize(name.size() - 4); // strip ".txt"
+                strlcpy(systate.profile_list[i].data(), name.c_str(), 64);
+                if (++i >= 3) break;
+            }
+        }
+    }
+
+    static void deleteProfile(std::string_view name) {
+        std::string path = "/lfs/profile/";
+        path += name;
+        path += ".txt";
+        unlink(path.c_str());
     }
 
     struct PageStack
@@ -313,13 +335,20 @@ class ArgosFramework
      void commandDispatcher(const UIMsg& msg) {
         using enum PageCommand;
         switch (msg.command) {
-            /* Handled by Network Task */
-            case PC_LoadProfile:   
-            case PC_AddProfile:    
-            case PC_DeleteProfile: {
+            case PC_LoadProfile:
+            case PC_AddProfile: {
                 xQueueSend(ui2network_command_q, &msg, 0);
+                if (manager.active_stack && manager.active_stack->curr_depth > 0) {
+                    manager.active_stack->top()->onExit();
+                    manager.active_stack->pop();
+                }
+                break;
             }
-            /* Handled by UI framework, no queue needed */
+            case PC_DeleteProfile: {
+                if (auto* p = std::get_if<ProfilePayload>(&msg.payload))
+                    deleteProfile(p->profile_name);
+                break;
+            }
             default: break;
         }
      }

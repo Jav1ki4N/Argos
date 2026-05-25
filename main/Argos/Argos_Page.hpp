@@ -144,8 +144,8 @@ class NetworkPage : public ArgosPage
         u8g2_DrawStr(u8g2, TEXT_X, STATIC::PAGE::LINE1, wifi_hint(wifi_state).data());
         u8g2_DrawStr(u8g2, TEXT_X, STATIC::PAGE::LINE2, 
         (chain_stage == NetworkTaskStateMsg::ChainStage::CS_Idle &&
-         error == NetworkTaskStateMsg::ChainError::E_None) 
-        ? chain_hint(chain_stage).data() : error_hint(error).data());
+         error != NetworkTaskStateMsg::ChainError::E_None) 
+        ? error_hint(error).data() : chain_hint(chain_stage).data());
     }
 
     static constexpr uint8_t TEXT_X = 75;
@@ -169,30 +169,86 @@ class ProfilePage : public ArgosPage
         setPencilMode(u8g2, PencilMode::Solid);
         u8g2_SetFont(u8g2, FONT::BASE_FONT);
 
-        const uint8_t font_h = u8g2_GetAscent(u8g2) - u8g2_GetDescent(u8g2);
-        const uint8_t bracket_x = 3 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
-        const uint8_t frame_x   = HWINFO::WIDTH / 2;
-        const uint8_t frame_w   = HWINFO::WIDTH - frame_x - STATIC::PAGE::TEXT_GAP_FROM_LEFT;
-        const uint8_t frame_y   = STATIC::PAGE::LINE1 - u8g2_GetAscent(u8g2);
-        const uint8_t frame_h   = (STATIC::PAGE::LINE3 - STATIC::PAGE::LINE1) + font_h;
+        const uint8_t ascent  = u8g2_GetAscent(u8g2);
+        const uint8_t descent = -u8g2_GetDescent(u8g2);
+        const uint8_t frame_y = STATIC::PAGE::LINE1 - ascent - 2;
+        const uint8_t frame_h = (STATIC::PAGE::LINE3 - STATIC::PAGE::LINE1) + ascent + descent + 2;
+
+        const uint8_t space_w = u8g2_GetStrWidth(u8g2, " ");
+        const uint8_t l_w = u8g2_GetStrWidth(u8g2, "[");
+        const uint8_t r_w = u8g2_GetStrWidth(u8g2, "]");
+        const uint8_t inner_w = FRAME_X - GAP - BRACKET_X - l_w - r_w;
+        const uint8_t n = inner_w / space_w;
+        const std::string spaces(n, ' ');
+        const std::string bracket = "[" + spaces + "]";
 
         for (uint8_t i = 0; i < Slot::MAX_NUM; ++i) {
-            const uint8_t y = STATIC::PAGE::LINE1 + i * (STATIC::PAGE::LINE2 - STATIC::PAGE::LINE1);
-            const char* text = (systate.profile_list[i].data()[0])
-                             ? systate.profile_list[i].data()
-                             : "[  ]";
+            uint8_t y = STATIC::PAGE::LINE1 + i * (STATIC::PAGE::LINE2 - STATIC::PAGE::LINE1);
             bool is_cursor = (mode == MenuMode::Slot && slot.cursor == i);
+
             if (is_cursor) {
                 u8g2_SetDrawColor(u8g2, 1);
-                u8g2_DrawBox(u8g2, bracket_x - 1, y - u8g2_GetAscent(u8g2),
-                             frame_x - bracket_x, font_h);
+                u8g2_DrawBox(u8g2, BRACKET_X + 2, y - ascent - 1, FRAME_X - GAP - BRACKET_X - 4, ascent + descent);
                 u8g2_SetDrawColor(u8g2, 0);
             }
-            u8g2_DrawStr(u8g2, bracket_x, y, text);
+
+            u8g2_DrawStr(u8g2, BRACKET_X, y, bracket.c_str());
+
+            std::string_view name = systate.profile_list[i].data();
+            if (name[0]) {
+                uint8_t name_w = u8g2_GetStrWidth(u8g2, name.data());
+                uint8_t name_x = BRACKET_X + l_w + (inner_w - name_w) / 2;
+                u8g2_DrawStr(u8g2, name_x, y, name.data());
+            }
+
             if (is_cursor) u8g2_SetDrawColor(u8g2, 1);
         }
 
-        u8g2_DrawFrame(u8g2, frame_x, frame_y, frame_w, frame_h);
+        u8g2_DrawFrame(u8g2, FRAME_X, frame_y, FRAME_W, frame_h);
+
+        bool is_option_mode = (mode == MenuMode::Option);
+        uint8_t mid_y   = frame_y + frame_h / 2;
+        uint8_t top_mid = frame_y + frame_h / 4;
+        uint8_t bot_mid = frame_y + frame_h * 3 / 4;
+
+        u8g2_DrawHLine(u8g2, FRAME_X + 2, mid_y, FRAME_W - 4);
+
+        static constexpr const char* ordinal[] = {"1st Slot", "2nd Slot", "3rd Slot"};
+        uint8_t w = u8g2_GetStrWidth(u8g2, ordinal[slot.cursor]);
+        u8g2_DrawStr(u8g2, FRAME_X + (FRAME_W - w) / 2, top_mid + ascent / 2, ordinal[slot.cursor]);
+
+        auto drawBtn = [&](const char* text, uint8_t opt_idx) {
+            uint8_t btn_w = u8g2_GetStrWidth(u8g2, text);
+            uint8_t third_w = (FRAME_W - 4) / 2;
+            uint8_t bx = FRAME_X + 2 + third_w * opt_idx + (third_w - btn_w) / 2;
+            uint8_t by = bot_mid + ascent / 2;
+            bool highlight = (is_option_mode && option.cursor == opt_idx);
+            if (highlight) {
+                u8g2_SetDrawColor(u8g2, 1);
+                u8g2_DrawBox(u8g2, bx + 4, bot_mid - ascent / 2 - 2, btn_w - 8, ascent + descent);
+                u8g2_SetDrawColor(u8g2, 0);
+            }
+            u8g2_DrawStr(u8g2, bx, by, text);
+            if (highlight) u8g2_SetDrawColor(u8g2, 1);
+        };
+
+        bool empty = (systate.profile_list[slot.cursor].data()[0] == '\0');
+        if (empty) {
+            uint8_t btn_w = u8g2_GetStrWidth(u8g2, "[ADD]");
+            uint8_t bx = FRAME_X + (FRAME_W - btn_w) / 2;
+            uint8_t by = bot_mid + ascent / 2;
+            bool highlight = is_option_mode;
+            if (highlight) {
+                u8g2_SetDrawColor(u8g2, 1);
+                u8g2_DrawBox(u8g2, bx + 4, bot_mid - ascent / 2 - 2, btn_w - 8, ascent + descent);
+                u8g2_SetDrawColor(u8g2, 0);
+            }
+            u8g2_DrawStr(u8g2, bx, by, "[ADD]");
+            if (highlight) u8g2_SetDrawColor(u8g2, 1);
+        } else {
+            drawBtn("[LOAD]", 0);
+            drawBtn("[DEL]", 1);
+        }
     }
 
     UIMsg onEvent(Encoder::EncoderMsg msg, const SystemState& systate) override {
@@ -201,8 +257,8 @@ class ProfilePage : public ArgosPage
         slot.isEmpty = (systate.profile_list[slot.cursor].data()[0] == '\0');
 
         /** Max index cursor can reach in a menu */
-        uint8_t           limit = (mode == MenuMode::Option)? Slot::MAX_NUM : Option::MAX_NUM;
-        uint8_t& cursor_to_move = (mode == MenuMode::Option)? slot.cursor : option.cursor;
+        uint8_t           limit = (mode == MenuMode::Slot) ? Slot::MAX_NUM : Option::MAX_NUM;
+        uint8_t& cursor_to_move = (mode == MenuMode::Slot) ? slot.cursor : option.cursor;
 
         /** move cursor to next or previous slot/option
          * -disabled if is in empty slot's opyion menu
@@ -263,6 +319,11 @@ class ProfilePage : public ArgosPage
         Slot,
         Option
     }mode = MenuMode::Slot;
+    static constexpr uint8_t BRACKET_X = 2 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
+    static constexpr uint8_t FRAME_X   = HWINFO::WIDTH / 2;
+    static constexpr uint8_t FRAME_W   = HWINFO::WIDTH - FRAME_X - STATIC::PAGE::TEXT_GAP_FROM_LEFT;
+    static constexpr uint8_t GAP       = 2 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
+
     struct Slot{
         bool isEmpty = false;
         uint8_t cursor = 0;

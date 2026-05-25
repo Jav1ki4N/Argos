@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Argos Configuration</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: #f4f4f9;
+        color: #333;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+      }
+      .container {
+        background: #ffffff;
+        width: 85%;
+        max-width: 400px;
+        padding: 2rem 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        box-sizing: border-box;
+      }
+      h1 {
+        text-align: center;
+        font-size: 1.5rem;
+        margin-top: 0;
+        margin-bottom: 1.5rem;
+        color: #2c3e50;
+      }
+      .form-group {
+        margin-bottom: 1.2rem;
+      }
+      label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: #555;
+      }
+      input[type="text"], input[type="password"], select {
+        width: 100%;
+        padding: 0.85rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 1rem;
+        box-sizing: border-box;
+        background-color: #fafafa;
+        transition: border-color 0.2s;
+      }
+      input[type="text"]:focus, input[type="password"]:focus, select:focus {
+        border-color: #3498db;
+        outline: none;
+        background-color: #fff;
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+      }
+      button {
+        width: 100%;
+        padding: 1rem;
+        background-color: #3498db;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 1.1rem;
+        font-weight: bold;
+        cursor: pointer;
+        margin-top: 1rem;
+        transition: background-color 0.2s;
+      }
+      button:hover {
+        background-color: #2980b9;
+      }
+      .footer {
+        text-align: center;
+        margin-top: 2rem;
+        font-size: 0.8rem;
+        color: #aaa;
+      }
+      .msg {
+        display: none;
+        text-align: center;
+        padding: 0.8rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        font-weight: 600;
+      }
+      .msg.success { background: #d4edda; color: #155724; }
+      .msg.error   { background: #f8d7da; color: #721c24; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Argos Configuration</h1>
+
+      <div id="msg" class="msg"></div>
+
+      <form id="config-form" method="POST" action="/save">
+        <div class="form-group">
+          <label for="ssid">WiFi Name (SSID)</label>
+          <input type="text" id="ssid" name="ssid" placeholder="Enter the router name" required>
+        </div>
+        <div class="form-group">
+          <label for="password">WiFi Password</label>
+          <input type="password" id="password" name="password" placeholder="Enter the WiFi password (if any)">
+        </div>
+        <div class="form-group">
+          <label for="ntp_server">NTP Server</label>
+          <select id="ntp_server" name="ntp_server">
+            <option value="ntp1.aliyun.com">ntp1.aliyun.com</option>
+            <option value="pool.ntp.org">pool.ntp.org</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="profile_name">Profile Name</label>
+          <input type="text" id="profile_name" name="profile_name" placeholder="Default: same as SSID">
+        </div>
+        <button type="submit">Save and Connect</button>
+      </form>
+      <div class="footer">Argos by i4N</div>
+    </div>
+
+    <script>
+      var ssidEl = document.getElementById('ssid');
+      var profEl = document.getElementById('profile_name');
+      var formEl = document.getElementById('config-form');
+      var msgEl  = document.getElementById('msg');
+
+      // Auto-fill profile_name from SSID (until user edits it manually)
+      var lastAuto = '';
+      ssidEl.addEventListener('input', function() {
+        if (profEl.value === '' || profEl.value === lastAuto) {
+          profEl.value = ssidEl.value;
+          lastAuto = ssidEl.value;
+        }
+      });
+      profEl.addEventListener('input', function() {
+        lastAuto = profEl.value;
+      });
+
+      // Submit via fetch, avoid page navigation
+      formEl.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        var body = 'ssid=' + encodeURIComponent(ssidEl.value)
+                 + '&password=' + encodeURIComponent(document.getElementById('password').value)
+                 + '&ntp_server=' + encodeURIComponent(document.getElementById('ntp_server').value)
+                 + '&profile_name=' + encodeURIComponent(profEl.value || ssidEl.value);
+
+        showMsg('Connecting, please wait ...', 'success');
+
+        fetch('/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body
+        })
+        .then(function(r) { return r.text(); })
+        .then(function() {
+          showMsg('Saved! Argos is now connecting to ' + ssidEl.value
+                  + '. You may close this page.', 'success');
+        })
+        .catch(function() {
+          showMsg('Failed to save. Please try again.', 'error');
+        });
+      });
+
+      function showMsg(text, cls) {
+        msgEl.textContent = text;
+        msgEl.className = 'msg ' + cls;
+        msgEl.style.display = 'block';
+      }
+    </script>
+  </body>
+</html>
