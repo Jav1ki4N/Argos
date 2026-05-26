@@ -49,6 +49,7 @@ managed_components/
 /.argos_env/
 
 /linux/build/
+/linux/argos/
 
 # CMake generated files
 CMakeCache.txt
