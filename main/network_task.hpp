@@ -35,6 +35,7 @@ class NetworkTask {
      */
     struct ChainLoadProfile {
         std::string profile_to_load_name;
+        std::string ntp_server;
         bool waiting_wifi = false;
     };
 
@@ -48,6 +49,8 @@ class NetworkTask {
         static constexpr uint8_t MAX_RETRY = 5;
         uint8_t retry_count = 0;
         std::unique_ptr<mDNS> mdns;
+        std::unique_ptr<SNTP> sntp;
+        std::string ntp_server;
     };
 
     struct ChainReceiveInfo {
@@ -67,6 +70,7 @@ class NetworkTask {
         network2ui_state_q = xQueueCreate(3, sizeof(NetworkTaskStateMsg));
         network2ui_info_q  = xQueueCreate(3, sizeof(SystemInfoMsg));
         vault.mkdir("/profile");
+
     }
 
     QueueHandle_t getStateQueue() { return network2ui_state_q; }
@@ -245,6 +249,7 @@ class NetworkTask {
                 return;
             }
 
+            chain.ntp_server = loaded_profile.ntp_server;
             wifi.start(WIFI::Mode::Station, loaded_profile.ssid,                  // Connect to WiFi
                                             loaded_profile.password);
             strlcpy(state_msg.wifi_ssid, loaded_profile.ssid, sizeof(state_msg.wifi_ssid));
@@ -258,7 +263,7 @@ class NetworkTask {
                                                                    WS_Offline;
                 
                 if(wifi_state == Failed)setError(E_FailedToConnectWiFi);
-                else pending_chain = ChainTargetDiscovery{};
+                else pending_chain = ChainTargetDiscovery{.ntp_server = chain.ntp_server};
                 queueSendNetworkState();
             }
             else{                                                                 // still connecting
@@ -276,6 +281,10 @@ class NetworkTask {
         using enum NetworkTaskStateMsg::ChainStage;
         using enum NetworkTaskStateMsg::ChainError;
         using enum NetworkTaskStateMsg::WiFiState;
+        if(!chain.sntp) {
+            chain.sntp = std::make_unique<SNTP>("pool.ntp.org");                 // Create SNTP instance if not exist
+            chain.sntp->sync();                                                     // Sync time (blocking)
+        }
         if(!chain.mdns) {                                                         // Create mDNS instance if not exist
             chain.mdns = std::make_unique<mDNS>();
             chain.mdns->start();
@@ -381,6 +390,7 @@ class NetworkTask {
             return;                                                                    // wait next tick for handler
         }
         if (isSaved) {
+            esp_wifi_stop();
             state_msg.chain_stage = CS_Idle;
             state_msg.error       = E_None;
             state_msg.wifi_state  = WS_Offline;

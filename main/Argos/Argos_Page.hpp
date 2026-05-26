@@ -343,19 +343,86 @@ class InfoPage : public ArgosPage
 
     void draw(u8g2_t* u8g2, const SystemState& systate) override {
         setPencilMode(u8g2, PencilMode::Solid);
-        u8g2_DrawStr(u8g2,50,30,"test_info");
+        u8g2_SetFont(u8g2, FONT::BASE_FONT);
+
+        const uint8_t ascent  = u8g2_GetAscent(u8g2);
+        const uint8_t descent = -u8g2_GetDescent(u8g2);
+        const uint8_t frame_y = STATIC::PAGE::LINE1 - ascent - 2;
+        const uint8_t frame_h = (STATIC::PAGE::LINE3 - STATIC::PAGE::LINE1) + ascent + descent + 2;
+        const uint8_t max_px  = FRAME_X - GAP - LABEL_X;
+        const bool in_stack   = systate.isEnterStack;
+
+        uint8_t count = buildItems(systate.system_info, max_px, u8g2);
+
+        for (uint8_t i = 0; i < MAX_VISIBLE && (scroll + i) < count; ++i) {
+            uint8_t idx = scroll + i;
+            uint8_t y   = STATIC::PAGE::LINE1 + i * (STATIC::PAGE::LINE2 - STATIC::PAGE::LINE1);
+            bool is_cursor = in_stack && (idx == cursor);
+
+            if (is_cursor) {
+                u8g2_SetDrawColor(u8g2, 1);
+                u8g2_DrawRBox(u8g2, LABEL_X - 1, y - ascent - 1, max_px, ascent + descent + 1, 1);
+                u8g2_SetDrawColor(u8g2, 0);
+            }
+
+            u8g2_DrawStr(u8g2, LABEL_X, y, lines[idx]);
+            if (is_cursor) u8g2_SetDrawColor(u8g2, 1);
+        }
+
+        u8g2_DrawFrame(u8g2, FRAME_X, frame_y, FRAME_W, frame_h);
     }
 
     UIMsg onEvent(Encoder::EncoderMsg msg, const SystemState& systate) override {
-        UIMsg page_msg = {};
-        if (msg == EncoderMsg::ButtonHeld)
-            page_msg.command = PageCommand::PC_Exit;
-        return page_msg;
+        buildItems(systate.system_info, 0, nullptr);
+        uint8_t count = line_count;
+
+        if      (msg == EncoderMsg::RotateRight && cursor < count - 1) { cursor++; if (cursor >= scroll + MAX_VISIBLE) scroll++; }
+        else if (msg == EncoderMsg::RotateLeft  && cursor > 0)          { cursor--; if (cursor <  scroll)               scroll--; }
+        else if (msg == EncoderMsg::ButtonHeld) return UIMsg{PageCommand::PC_Exit, std::monostate{}};
+        return makeEmptyMsg();
     }
 
+    void onEnter() override { cursor = 0; scroll = 0; }
     void onExit() override {}
 
     private:
+    static constexpr uint8_t MAX_VISIBLE = 3;
+    static constexpr uint8_t MAX_LINES   = 8;
+    static constexpr uint8_t LABEL_X     = 2 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
+    static constexpr uint8_t FRAME_X     = HWINFO::WIDTH * 2 / 3;
+    static constexpr uint8_t FRAME_W     = HWINFO::WIDTH - FRAME_X - STATIC::PAGE::TEXT_GAP_FROM_LEFT;
+    static constexpr uint8_t GAP         = 2 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
+
+    uint8_t cursor = 0;
+    uint8_t scroll = 0;
+    uint8_t line_count = 0;
+    char lines[MAX_LINES][64] = {};
+
+    uint8_t buildItems(const SystemInfoMsg& info, uint8_t max_px, u8g2_t* u8g2) {
+        uint8_t n = 0;
+        auto add = [&](const char* label, const char* fmt, ...) __attribute__((format(printf, 3, 4))) {
+            int pos = snprintf(lines[n], sizeof(lines[n]), "%s ", label);
+            va_list args;
+            va_start(args, fmt);
+            vsnprintf(lines[n] + pos, sizeof(lines[n]) - pos, fmt, args);
+            va_end(args);
+            if (u8g2 && u8g2_GetStrWidth(u8g2, lines[n]) > max_px) {
+                while (lines[n][0] && u8g2_GetStrWidth(u8g2, lines[n]) + u8g2_GetStrWidth(u8g2, "..") > max_px)
+                    lines[n][strlen(lines[n]) - 1] = '\0';
+                strcat(lines[n], "..");
+            }
+            n++;
+        };
+
+        if (info.os[0]) add("Host:", "%s (%s)", info.host_name, info.os);
+        else            add("Host:", "%s", info.host_name);
+        add("CPU:", "%dC/%dT %dMHz %.1f%%", info.cpu_cores, info.cpu_threads, info.cpu_core_freq, (double)info.cpu_usage);
+        add("Temp:", "%.1fC", (double)info.cpu_temp);
+        add("MEM:", "%d/%d MB %.1f%%", info.mem_used, info.mem_total, (double)info.mem_usage);
+        add("Disk:", "%d/%d MB %.1f%%", info.disk_used, info.disk_total, (double)info.disk_usage);
+        line_count = n;
+        return n;
+    }
 };
 
 /* STABLE VERSION DO NOT MODIFY */

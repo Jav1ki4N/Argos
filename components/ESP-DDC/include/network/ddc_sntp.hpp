@@ -54,6 +54,7 @@ class SNTP
         }
         esp_netif_sntp_deinit();
         if (retry_count < _config.max_retry_count) {
+            setTimezone("CST-8");
             ESP_LOGI(TAG, "Time sync successful");
         } else {
             ESP_LOGW(TAG, "Time sync failed after %d attempts", _config.max_retry_count);

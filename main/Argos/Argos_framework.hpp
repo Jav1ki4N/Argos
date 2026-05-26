@@ -141,6 +141,14 @@ class ArgosFramework
         if (xQueueReceive(network2ui_state_q, &network_msg, 0) == pdTRUE)
             systate.network_msg = network_msg;
 
+        /* Get time from RTC */
+        time_t now = time(nullptr);
+        if (now > 0) {
+            tm* t = localtime(&now);
+            snprintf(systate.curr_time, sizeof(systate.curr_time),
+                     "%02d:%02d:%02d", t->tm_hour, t->tm_min, t->tm_sec);
+        }
+
         /* Refresh profile list from LittleFS */
         for (auto& p : systate.profile_list) p[0] = '\0';
         auto dir = std::unique_ptr<DIR, decltype(&closedir)>{opendir("/lfs/profile"), closedir};
@@ -281,7 +289,10 @@ class ArgosFramework
      * @brief Draw the current time on the navigation bar
      */
     void drawTime() {
-        // todo
+        uint8_t w = u8g2_GetStrWidth(u8g2, system_state.curr_time);
+        uint8_t x = HWINFO::WIDTH - w - STATIC::PAGE::TEXT_GAP_FROM_LEFT;
+        uint8_t y = STATIC::NAV::NAV_BAR_HEIGHT - STATIC::TITLE::GAP_FROM_BUTTOM;
+        u8g2_DrawStr(u8g2, x, y, system_state.curr_time);
     }
 
     /**
