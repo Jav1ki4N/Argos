@@ -370,6 +370,35 @@ class InfoPage : public ArgosPage
         }
 
         u8g2_DrawFrame(u8g2, FRAME_X, frame_y, FRAME_W, frame_h);
+
+        const uint8_t gx = FRAME_X + 4;
+        const uint8_t gy = frame_y + 4;
+        const uint8_t gw = FRAME_W - 8;
+        const uint8_t gh = frame_h - 8;
+
+        /* Temp graph: 5 dots evenly spaced across frame */
+        uint8_t tx[5];
+        for (uint8_t i = 0; i < 5; ++i) tx[i] = gx + i * gw / 4;
+
+        float ct = systate.system_info.cpu_temp;
+        if (ct > 0 && ct != temp_history[temp_idx]) {
+            temp_idx = (temp_idx + 1) % 5;
+            temp_history[temp_idx] = ct;
+        }
+        uint8_t py[5] = {};
+        for (uint8_t i = 0; i < 5; ++i) {
+            float val = temp_history[(temp_idx + 1 + i) % 5];
+            if (val == 0) continue;
+            if (val > 60) val = 60;
+            if (val < 40) val = 40;
+            uint8_t yi = gy + gh - (uint8_t)((val - 40.0f) * gh / 20.0f);
+            u8g2_DrawVLine(u8g2, tx[i], yi - 2, 5);
+            py[i] = yi;
+        }
+        for (uint8_t i = 1; i < 5; ++i) {
+            if (py[i - 1] && py[i])
+                u8g2_DrawLine(u8g2, tx[i - 1], py[i - 1], tx[i], py[i]);
+        }
     }
 
     UIMsg onEvent(Encoder::EncoderMsg msg, const SystemState& systate) override {
@@ -397,6 +426,9 @@ class InfoPage : public ArgosPage
     uint8_t scroll = 0;
     uint8_t line_count = 0;
     char lines[MAX_LINES][64] = {};
+
+    float   temp_history[5] = {};
+    uint8_t temp_idx = 4;
 
     uint8_t buildItems(const SystemInfoMsg& info, uint8_t max_px, u8g2_t* u8g2) {
         uint8_t n = 0;

@@ -315,7 +315,8 @@ class NetworkTask {
         using enum NetworkTaskStateMsg::ChainError;
         using enum NetworkTaskStateMsg::WiFiState;
         if(!chain.http_client) {
-            chain.http_client = std::make_unique<HttpClient>(chain.ip.c_str());  // Create HTTP client instance if not exist
+            std::string url = "http://" + chain.ip + ":8080/api/info";
+            chain.http_client = std::make_unique<HttpClient>(url.c_str());         // Create HTTP client instance if not exist
             state_msg.chain_stage = CS_ReceivingInfo;
             state_msg.error       = E_None;
             queueSendNetworkState();

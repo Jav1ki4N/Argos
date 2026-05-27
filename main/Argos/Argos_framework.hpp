@@ -141,6 +141,10 @@ class ArgosFramework
         if (xQueueReceive(network2ui_state_q, &network_msg, 0) == pdTRUE)
             systate.network_msg = network_msg;
 
+        SystemInfoMsg info_msg;
+        if (xQueueReceive(network2ui_info_q, &info_msg, 0) == pdTRUE)
+            systate.system_info = info_msg;
+
         /* Get time from RTC */
         time_t now = time(nullptr);
         if (now > 0) {
@@ -289,6 +293,7 @@ class ArgosFramework
      * @brief Draw the current time on the navigation bar
      */
     void drawTime() {
+        setPencilMode(u8g2, PencilMode::Hollow);
         uint8_t w = u8g2_GetStrWidth(u8g2, system_state.curr_time);
         uint8_t x = HWINFO::WIDTH - w - STATIC::PAGE::TEXT_GAP_FROM_LEFT;
         uint8_t y = STATIC::NAV::NAV_BAR_HEIGHT - STATIC::TITLE::GAP_FROM_BUTTOM;
