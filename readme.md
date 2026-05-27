@@ -26,8 +26,8 @@ Save named configuration profiles to Argos and load them on demand. Each profile
 ---
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/Argos.jpg" width="600" alt="Argos device">
-  <img src="https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/argos_example.gif" width="600" alt="Argos demo">
+  <img src="./assets/gallery/argos_info.png" width="600" alt="Argos device">
+  <img src="./assets/gallery/example.gif" width="600" alt="Argos demo">
   <p><em>Argos in action</em></p>
 </div>
 
