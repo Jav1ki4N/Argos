@@ -133,5 +133,69 @@ inline void setPencilMode(u8g2_t* u8g2, PencilMode mode) {
     u8g2_SetDrawColor(u8g2, _mode);
 }
 
+template<uint8_t FRAME_COUNT>
+class Animation {
+    public:
+    Animation() = default;
+    ~Animation() = default;
+
+
+    bool update(uint32_t interval_ms) {
+        if(isRunning) return false;
+        uint32_t curr_tick = static_cast<uint32_t>(esp_timer_get_time() / 1000);
+        if(last_tick == 0) {
+            last_tick = curr_tick;
+            return false;
+        }
+        if (curr_tick - last_tick >= interval_ms) {
+            frame_index = (frame_index + 1) % FRAME_COUNT;
+            last_tick = curr_tick;
+            return true;
+        }
+        return false; 
+    }
+
+    bool update() {
+        if (!isRunning) return false;
+        uint32_t now = static_cast<uint32_t>(esp_timer_get_time() / 1000); 
+        
+        if (last_tick == 0) {
+            last_tick = now;
+            return false;
+        }
+
+        if (now - last_tick >= frame_durations[frame_index]) {
+            frame_index = (frame_index + 1) % FRAME_COUNT;
+            last_tick = now;
+            return true;
+        }
+        return false;
+    }
+
+    void set_durations(std::initializer_list<uint32_t> list){
+        uint8_t i = 0;
+        for (uint32_t d : list)
+        {
+            if (i >= FRAME_COUNT) break;
+            frame_durations[i++] = d;
+        }
+    }
+
+    void reset() {
+        frame_index = 0;
+        last_tick = static_cast<uint32_t>(esp_timer_get_time() / 1000);
+        isRunning   = true;
+    }
+
+    void stop()  { isRunning = false; }
+    void start() { isRunning = true;  }
+    uint8_t current() const { return frame_index; }
+
+    private:
+    uint8_t  frame_index = 0;
+    uint32_t last_tick   = 0;
+    bool     isRunning   = true;
+    uint32_t frame_durations[FRAME_COUNT] = {};
+};
 
 

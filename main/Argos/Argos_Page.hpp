@@ -55,14 +55,22 @@ class NetworkPage : public ArgosPage
         using enum NetworkTaskStateMsg::ChainError;
         setPencilMode(u8g2, PencilMode::Solid);
 
-        const ICON& icon = (systate.network_msg.wifi_state == WS_Offline)
-                         ? ICON_WIFI_NO_CONNECT
-                         : ICON_WIFI_CONNECTED;
+        const ICON* wicons[] = {&ICON_WIFI_1, &ICON_WIFI_2, &ICON_WIFI_3};
+        const ICON* icon;
+        auto ws = systate.network_msg.wifi_state;
+        if (ws == WS_Offline)
+            icon = &ICON_WIFI_NO_CONNECT;
+        else if (ws == WS_STAConnecting) {
+            wifi_anim.update(300);
+            icon = wicons[wifi_anim.current()];
+        } else {
+            icon = &ICON_WIFI_CONNECTED;
+        }
 
         uint8_t icon_x = 3 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
-        uint8_t icon_y = (((HWINFO::WEIGHT - STATIC::NAV::NAV_BAR_HEIGHT) - icon.height) >> 1)
+        uint8_t icon_y = (((HWINFO::WEIGHT - STATIC::NAV::NAV_BAR_HEIGHT) - icon->height) >> 1)
                        + STATIC::NAV::NAV_BAR_HEIGHT;
-        u8g2_DrawXBMP(u8g2, icon_x, icon_y, icon.width, icon.height, icon.data);
+        u8g2_DrawXBMP(u8g2, icon_x, icon_y, icon->width, icon->height, icon->data);
 
         {
             u8g2_DrawStr(u8g2, TEXT_X, STATIC::PAGE::LINE3,     "Setting: [PROFILES]");
@@ -89,6 +97,7 @@ class NetworkPage : public ArgosPage
         return page_msg;
     }
     void onEnter() override {
+        wifi_anim.stop();
         inStack = true;
     }
     void onExit() override {
@@ -100,6 +109,8 @@ class NetworkPage : public ArgosPage
     NetworkTaskStateMsg::WiFiState  wifi_state;
     NetworkTaskStateMsg::ChainError error;
     NetworkTaskStateMsg::ChainStage chain_stage;
+
+    Animation<3> wifi_anim;
 
     static constexpr std::string_view wifi_hint(NetworkTaskStateMsg::WiFiState s) {
         using enum NetworkTaskStateMsg::WiFiState;

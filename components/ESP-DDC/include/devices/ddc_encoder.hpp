@@ -13,6 +13,10 @@
 
 class Encoder
 {
+    /**
+     * @brief Enum for setting the sensitivity of rotation detection
+     * @note  If the accumulation reached the threshold, a rotation event is trigger
+     */
     enum class AccumulationThreshold : int8_t
     {
         Low    = 1,  // {1, -1} — most sensitive (every half-step)
@@ -20,19 +24,28 @@ class Encoder
         High   = 4   // {4, -4} — two detents
     };
 
+    /**
+     * @param pin_a      Phase A input
+     * @param pin_b      Phase B input
+     * @param pin_button Button input
+     * @param accumulation_threshold Threshold for determining rotation direction based on accumulated steps
+     */
     public:
-    Encoder(gpio_num_t pin_a, gpio_num_t pin_b, gpio_num_t pin_button,
+    Encoder(gpio_num_t pin_a, 
+            gpio_num_t pin_b, 
+            gpio_num_t pin_button,
             AccumulationThreshold accumulation_threshold = AccumulationThreshold::Normal)
     : _pin_a     (pin_a, GPIO_MODE_ENCODER, GPIO_PULL_ENCODER),
       _pin_b     (pin_b, GPIO_MODE_ENCODER, GPIO_PULL_ENCODER),
       _pin_button(pin_button, GPIO_MODE_ENCODER, GPIO_PULL_ENCODER),
       _accumulation_threshold(accumulation_threshold)
     {
-        /* Update pulse graycode */
+        /* Init pulse graycode */
         /* -e.g. A=1, B=0 -> Graycode 10 */
         last_AB = ((_pin_a.read() ? 1 : 0) << 1) | (_pin_b.read() ? 1 : 0);
         /* Initialize queue */
         queue = xQueueCreate(20, sizeof(Encoder::EncoderMsg));
+        /* Attach ISR */
         Attach_Interrupt();
     }
     
@@ -52,26 +65,31 @@ class Encoder
         ButtonHeld
     };
 
-    /* Botton Detection Polling */
+    /**
+     * @brief Detect button press and hold events
+     * @note  FSM + Polling
+     */
     void Botton_Detection()
     {
-        uint32_t SCurrentTime = 0;
+        uint32_t s_curr_time = 0;
         if(btn_state == BtnState::Idle)
         {
-            if(!_pin_button.read())btn_state = BtnState::SPressed; // LOW = pressed (pull-up + GND)
-            SEnteredTime = static_cast<uint32_t>(esp_timer_get_time() / 1000);
+            if(!_pin_button.read()) {
+                btn_state = BtnState::SPressed; 
+                s_enter_time = static_cast<uint32_t>(esp_timer_get_time() / 1000);
+            }
         }
         else if(btn_state == BtnState::SPressed)
         {
-            SCurrentTime = static_cast<uint32_t>(esp_timer_get_time() / 1000);
-            if(SCurrentTime - SEnteredTime >= HOLD_THRESHOLD_MS){
+            s_curr_time = static_cast<uint32_t>(esp_timer_get_time() / 1000);
+            if(s_curr_time - s_enter_time >= HOLD_THRESHOLD_MS){
                 btn_state = BtnState::SHeld;
-                SEnteredTime = 0;
+                s_enter_time = 0;
             }
             if(_pin_button.read())
             {
                 btn_state = BtnState::Idle; // released before hold threshold
-                SEnteredTime = 0;
+                s_enter_time = 0;
                 msg = EncoderMsg::ButtonPressed; // message -> short press
                 xQueueSend(queue, &msg, 0); 
                 #if ENCODER_DEBUG
@@ -81,10 +99,10 @@ class Encoder
         }
         else if(btn_state == BtnState::SHeld)
         {
-            if(_pin_button.read()) // HIGH = released (pull-up + GND)
+            if(_pin_button.read()) 
             {
-                btn_state = BtnState::Idle; // hold released
-                msg = EncoderMsg::ButtonHeld;    // message -> long press
+                btn_state =   BtnState::Idle;          // hold released
+                msg       = EncoderMsg::ButtonHeld;    
                 xQueueSend(queue, &msg, 0); 
                 #if ENCODER_DEBUG
                     ESP_LOGI(TAG, "Button Held");
@@ -93,44 +111,44 @@ class Encoder
         }
     }
 
-    /* Rotation Detection Polling */
-    void Rotation_Detection()
-    {
-        uint8_t curr_AB = ((_pin_a.read() ? 1 : 0) << 1) | (_pin_b.read() ? 1 : 0);
+    // /* Rotation Detection Polling */
+    // void Rotation_Detection()
+    // {
+    //     uint8_t curr_AB = ((_pin_a.read() ? 1 : 0) << 1) | (_pin_b.read() ? 1 : 0);
         
-        if (curr_AB != last_AB) // state changed
-        {
-            uint8_t transition = (last_AB << 2) | curr_AB; // transition bitmask
-            int8_t  step = TRANSITION_TABLE[transition];   // step of rotation based on transition
-                                                           // -1 to CCW, 1 to CW, 0 to invalid/unchanged
+    //     if (curr_AB != last_AB) // state changed
+    //     {
+    //         uint8_t transition = (last_AB << 2) | curr_AB; // transition bitmask
+    //         int8_t  step = TRANSITION_TABLE[transition];   // step of rotation based on transition
+    //                                                        // -1 to CCW, 1 to CW, 0 to invalid/unchanged
             
-            accumulation += step;                          // accumulate steps until it returns to static state (11)
-            last_AB = curr_AB;
+    //         accumulation += step;                          // accumulate steps until it returns to static state (11)
+    //         last_AB = curr_AB;
 
-            /* If current state is static state (A,B)=(1,1) */
-            /* check accumulation to determine rotation direction */
-            if (curr_AB == STATIC_STATE) 
-            {
-                if (accumulation >= static_cast<int8_t>(_accumulation_threshold)) 
-                {
-                    msg = EncoderMsg::RotateRight;
-                    xQueueSend(queue, &msg, 0); 
-                    #if ENCODER_DEBUG
-                        ESP_LOGI(TAG, "Rotated Right (count: %d)", accumulation);
-                    #endif
-                } 
-                else if (accumulation <= -static_cast<int8_t>(_accumulation_threshold)) 
-                {
-                    msg = EncoderMsg::RotateLeft;
-                    xQueueSend(queue, &msg, 0); 
-                    #if ENCODER_DEBUG
-                        ESP_LOGI(TAG, "Rotated Left (count: %d)", accumulation);
-                    #endif
-                }
-                accumulation = 0; // reset accumulation
-            }
-        }
-    }
+    //         /* If current state is static state (A,B)=(1,1) */
+    //         /* check accumulation to determine rotation direction */
+    //         if (curr_AB == STATIC_STATE) 
+    //         {
+    //             if (accumulation >= static_cast<int8_t>(_accumulation_threshold)) 
+    //             {
+    //                 msg = EncoderMsg::RotateRight;
+    //                 xQueueSend(queue, &msg, 0); 
+    //                 #if ENCODER_DEBUG
+    //                     ESP_LOGI(TAG, "Rotated Right (count: %d)", accumulation);
+    //                 #endif
+    //             } 
+    //             else if (accumulation <= -static_cast<int8_t>(_accumulation_threshold)) 
+    //             {
+    //                 msg = EncoderMsg::RotateLeft;
+    //                 xQueueSend(queue, &msg, 0); 
+    //                 #if ENCODER_DEBUG
+    //                     ESP_LOGI(TAG, "Rotated Left (count: %d)", accumulation);
+    //                 #endif
+    //             }
+    //             accumulation = 0; // reset accumulation
+    //         }
+    //     }
+    // }
 
     /* Rotation Detection Interrupt Service Routine */
     /* -Logic ISR */
@@ -142,8 +160,8 @@ class Encoder
         if (curr_AB != last_AB) // state changed
         {
             uint8_t transition = (last_AB << 2) | curr_AB;
-        
-            int8_t step = 0;
+             int8_t step = 0;
+
             /* Avoiding accessing table in an ISR */
             /* - Flash cache miss */
             switch(transition) {
@@ -185,10 +203,10 @@ class Encoder
     void Attach_Interrupt()                                           
     {
         gpio_config_t io_conf = {};
-        io_conf.intr_type = GPIO_INTR_ANYEDGE;
+        io_conf.intr_type    = GPIO_INTR_ANYEDGE; // trigger on any edge for both A and B
         io_conf.pin_bit_mask = (1ULL << _pin_a.get_pin_num()) | (1ULL << _pin_b.get_pin_num());
-        io_conf.mode = GPIO_MODE_INPUT;
-        io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+        io_conf.mode         = GPIO_MODE_INPUT;
+        io_conf.pull_up_en   = GPIO_PULLUP_ENABLE;
         io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
         gpio_config(&io_conf);
 
@@ -197,10 +215,7 @@ class Encoder
         gpio_isr_handler_add(_pin_b.get_pin_num(), isr_handler, (void*)this);
     }
 
-    QueueHandle_t GetQueue() // should be called by other task
-    {
-        return queue;
-    }
+    QueueHandle_t GetQueue() {return queue;}
     
     private:
     /* Log Tag */
@@ -213,7 +228,12 @@ class Encoder
     static constexpr uint16_t DEBOUNCE_DELAY_MS = 100;
     /* Encoder static state AB gray code */
     static constexpr uint8_t STATIC_STATE = 0b11;
-    static constexpr int8_t TRANSITION_TABLE[16]= // step table based on AB transition
+    /**
+     *@brief Transition table for quadrature encoder state changes
+     *@note  Index: (last_AB << 2) | curr_AB maps the 4-bit transition from last state to current state
+     *       the table stored the step direction for each transition 
+     */
+    static constexpr int8_t TRANSITION_TABLE[16]= 
     {
         /* last state -> current state */
         /* 0  --> invalid or unchanged */
@@ -229,10 +249,10 @@ class Encoder
         _pin_b,
         _pin_button;
     /* state vars */
-    uint32_t SEnteredTime        = 0;                     // button pressed time counter
+    uint32_t s_enter_time        = 0;                     // button pressed time counter
     volatile uint8_t last_AB     = STATIC_STATE;          // last state of AB graycode
     volatile int8_t accumulation = 0;                     // total accumulated steps on a certain direction
-    AccumulationThreshold _accumulation_threshold; // determine sensitivity of rotation detection
+    AccumulationThreshold _accumulation_threshold;        // determine sensitivity of rotation detection
     BtnState btn_state           = BtnState::Idle;        // button FSM state
     EncoderMsg msg               = EncoderMsg::None;      // message sent to other task if needed
     /* ISR */
