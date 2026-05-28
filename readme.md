@@ -2,7 +2,8 @@
 
 [中文](./readme_zh.md) | **English**
 
-![ESP-IDF](https://img.shields.io/badge/ESP--IDF-5.5.4-none?logo=espressif&color=%23E7352C)
+![Static Badge](https://img.shields.io/badge/ESP--IDF-5.5.4-none?style=flat-square&logo=espressif&logoColor=fffff&logoSize=auto&color=%23E7352C) 
+
 
 ---
 
@@ -37,7 +38,7 @@ Save named configuration profiles to Argos and load them on demand. Each profile
 
 Argos has two components:
 
-1. **PC-side agent** (`./run_server`) — a binary that collects system metrics (CPU, memory, disk, OS) and exposes them as a JSON HTTP endpoint on port `8080`.
+1. **PC-side server** (`/linux/run_server.py`) — a python script that collects system metrics (CPU, memory, disk, OS) and exposes them as a JSON HTTP endpoint on port `8080`.
 
 2. **ESP32 device** — connects to the same Wi‑Fi network, polls `/api/info` every second, parses the JSON response, and renders the data on the OLED display.
 
@@ -86,7 +87,7 @@ git clone https://github.com/espressif/esp-protocols.git components/espressif__m
 
 > Requires **ESP‑IDF ≥ 5.0**.
 
-### PC Agent
+### PC Server
 
 Cross‑platform Python server; see [Deployment](#1-pc-agent-server) for setup.
 
@@ -107,16 +108,22 @@ A `run_server.py` script is provided under [`./linux`](./linux) to launch the se
 ```bash
 git clone https://github.com/Jav1ki4N/Argos.git
 cd linux
+chmod +x run_server.py
 ./run_server.py
 ```
-
-A pre‑compiled `run_server` binary is also available for Linux:
+If you don't have all the dependencies, there's a `requiremnts.txt` that guides pip to install all of them:
 
 ```bash
-./run_server
+pip freeze > requirements.txt
 ```
 
-Windows users must compile from source for now — a pre‑built Windows binary is planned.
+or do it manually:
+
+```bash
+pip install flask psutil zeroconf
+```
+
+A binary is working in progress, you shall be able to build your own with Pyinstaller and many other.
 
 **Verify the endpoint:**
 
@@ -147,6 +154,8 @@ After saving, the ESP32 switches to STA mode and locates the target device via *
 ---
 
 ## PCB
+
+>All PCBs are built with ICEDA (EasyEDA)
 
 ### Prototype
 
@@ -211,7 +220,7 @@ The prototype revision — built for testing — has several known issues:
 - [x] mDNS auto‑discovery of target device
 - [x] Stack‑based UI FSM
 - [x] Network task FSM rewrite
+- [x] UI rewrite
 - [ ] Battery monitoring via ADC
-- [ ] UI rewrite
 - [ ] Offline time acquisition
 - [ ] …
