@@ -199,6 +199,7 @@ The prototype revision — built for testing — has several known issues:
 | ETA9697                 | Battery Charging IC  | ETA9697E8A         | 1   |
 | ME6231                  | LDO                  | ME6231C33M5G       | 1   |
 | Battery                 | Battery              | Li‑Po 60×30×48 mm | 1   |
+| Terminal Block          | Connector            | KF128-2P           | 1   |
 | Display                 | Display Module       | SER3.12‑D, SSD1322 | 1   |
 
 <p><em>Bill of Materials</em></p>

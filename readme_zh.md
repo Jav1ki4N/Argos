@@ -197,6 +197,7 @@ Prototype 版本用于功能验证，存在以下已知问题：
 | ETA9697                 | 电池充电 IC        | ETA9697E8A         | 1    |
 | ME6231                  | LDO                | ME6231C33M5G       | 1    |
 | Battery                 | 电池               | 锂聚合物 60×30×48 mm | 1 |
+| 接线端子                 | 连接器             | KF128-2P           | 1    |
 | Display                 | 显示模组           | SER3.12‑D, SSD1322 | 1    |
 
 <p><em>BOM</em></p>
