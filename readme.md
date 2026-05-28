@@ -22,7 +22,7 @@
 
 ### Profiles
 
-Save named configuration profiles to Argos and load them on demand. Each profile stores Wi‑Fi credentials, NTP server settings, and more. Delete profiles you no longer need directly from the device.
+Save named configuration profiles to Argos and load them on demand. Each profile stores Wi‑Fi credentials, NTP server settings, and more. Delete profiles you no longer need directly from the device. Currently the device supports max to 3 profiles.
 
 ---
 
@@ -111,7 +111,7 @@ cd linux
 chmod +x run_server.py
 ./run_server.py
 ```
-If you don't have all the dependencies, there's a `requiremnts.txt` that guides pip to install all of them:
+If you don't have all the dependencies, there's a `requirements.txt` that guides pip to install all of them:
 
 ```bash
 pip freeze > requirements.txt
