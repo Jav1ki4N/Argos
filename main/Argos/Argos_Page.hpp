@@ -37,7 +37,7 @@ class ArgosPage
     virtual UIMsg onEvent(Encoder::EncoderMsg msg, const SystemState& systate) = 0; // impl required
 
     protected:
-    bool inStack = false; // for root pages
+    bool inStack   = false; // for root pages
     UIMsg makeEmptyMsg() const { UIMsg msg = {}; return msg; }
     private:
 };
@@ -55,39 +55,33 @@ class NetworkPage : public ArgosPage
         using enum NetworkTaskStateMsg::ChainError;
         setPencilMode(u8g2, PencilMode::Solid);
 
-        const ICON* wicons[] = {&ICON_WIFI_1, &ICON_WIFI_2, &ICON_WIFI_3};
-        const ICON* icon;
+        const ICON* wicons[] = {&ICON_WIFI_1, &ICON_WIFI_2, &ICON_WIFI_3}; // animation frames
+        const ICON* icon;                                                  // frame to render
         auto ws = systate.network_msg.wifi_state;
-        if (ws == WS_Offline)
-            icon = &ICON_WIFI_NO_CONNECT;
-        else if (ws == WS_STAConnecting) {
-            wifi_anim.update(300);
-            icon = wicons[wifi_anim.current()];
-        } else {
-            icon = &ICON_WIFI_CONNECTED;
-        }
-
-        uint8_t icon_x = 3 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
+        if      (ws == WS_Offline)      icon = &ICON_WIFI_NO_CONNECT;      // static
+        else if (ws == WS_STAConnected) icon = &ICON_WIFI_CONNECTED;
+        else {
+            wifi_animation.update(300);                                    // dynamic, using animation 
+            icon = wicons[wifi_animation.current()];
+        } 
+        
+        uint8_t icon_x = 3 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;             // placement of wifi icon
         uint8_t icon_y = (((HWINFO::WEIGHT - STATIC::NAV::NAV_BAR_HEIGHT) - icon->height) >> 1)
                        + STATIC::NAV::NAV_BAR_HEIGHT;
         u8g2_DrawXBMP(u8g2, icon_x, icon_y, icon->width, icon->height, icon->data);
-
-        {
-            u8g2_DrawStr(u8g2, TEXT_X, STATIC::PAGE::LINE3,     "Setting: [PROFILES]");
-            if(inStack) {
-                setPencilMode(u8g2, PencilMode::Invert);
-                u8g2_DrawBox(u8g2, 
-                TEXT_X + u8g2_GetStrWidth(u8g2,"Settings: ")-4,  
-                (STATIC::PAGE::LINE3 - 8), 
-                u8g2_GetStrWidth(u8g2,"[PROFILES]") - 4,  
-                u8g2_GetFontAscent(u8g2) + u8g2_GetFontDescent(u8g2) + 4);
-            }
-            wifi_state  = systate.network_msg.wifi_state;
-            error       = systate.network_msg.error;
-            chain_stage = systate.network_msg.chain_stage;
-            
-            makeHint(u8g2);
+        u8g2_DrawStr(u8g2, TEXT_X, STATIC::PAGE::LINE3,"Setting: [PROFILES]"); // profiles button
+        if(inStack) {                                                          // highlight
+            setPencilMode(u8g2, PencilMode::Invert);
+            u8g2_DrawBox(u8g2, 
+            TEXT_X + u8g2_GetStrWidth(u8g2,"Settings: ")-4,  
+            (STATIC::PAGE::LINE3 - 8), 
+            u8g2_GetStrWidth(u8g2,"[PROFILES]") - 4,  
+            u8g2_GetFontAscent(u8g2) + u8g2_GetFontDescent(u8g2) + 4);
         }
+        wifi_state  = systate.network_msg.wifi_state;                          // make hint in line2
+        error       = systate.network_msg.error;
+        chain_stage = systate.network_msg.chain_stage;
+        makeHint(u8g2);
     }
 
     UIMsg onEvent(Encoder::EncoderMsg msg, const SystemState& systate) override {
@@ -97,7 +91,7 @@ class NetworkPage : public ArgosPage
         return page_msg;
     }
     void onEnter() override {
-        wifi_anim.stop();
+        wifi_animation.stop();
         inStack = true;
     }
     void onExit() override {
@@ -106,13 +100,13 @@ class NetworkPage : public ArgosPage
 
     private:
 
-    NetworkTaskStateMsg::WiFiState  wifi_state;
-    NetworkTaskStateMsg::ChainError error;
-    NetworkTaskStateMsg::ChainStage chain_stage;
+    NetworkTaskStateMsg::WiFiState  wifi_state;  // displayed in line 1 
+    NetworkTaskStateMsg::ChainStage chain_stage; // displayed in line 2
+    NetworkTaskStateMsg::ChainError error;       // displayed in line 2 fallback to IDLE 
 
-    Animation<3> wifi_anim;
+    Animation<3> wifi_animation;                 // wifi connecting animation
 
-    static constexpr std::string_view wifi_hint(NetworkTaskStateMsg::WiFiState s) {
+    static constexpr std::string_view makeWifiHint(NetworkTaskStateMsg::WiFiState s) {
         using enum NetworkTaskStateMsg::WiFiState;
         switch (s) {
             case WS_Offline:        return "Network: [OFFLINE]";
@@ -123,7 +117,7 @@ class NetworkPage : public ArgosPage
         }
     }
 
-    static constexpr std::string_view chain_hint(NetworkTaskStateMsg::ChainStage s) {
+    static constexpr std::string_view makeChainHint(NetworkTaskStateMsg::ChainStage s) {
         using enum NetworkTaskStateMsg::ChainStage;
         switch (s) {
             case CS_Idle:            return "Status:  [IDLE]";
@@ -137,7 +131,7 @@ class NetworkPage : public ArgosPage
         }
     }
 
-    static constexpr std::string_view error_hint(NetworkTaskStateMsg::ChainError e) {
+    static constexpr std::string_view makeErrorHint(NetworkTaskStateMsg::ChainError e) {
         using enum NetworkTaskStateMsg::ChainError;
         switch (e) {
             case E_FailedToOpenProfile: return "Failed:  [OPEN PROFILE]";
@@ -151,24 +145,19 @@ class NetworkPage : public ArgosPage
         }
     }
 
+    /**
+     *@brief Make hints in line2 of network page
+     */
     void makeHint(u8g2_t *u8g2){
-        u8g2_DrawStr(u8g2, TEXT_X, STATIC::PAGE::LINE1, wifi_hint(wifi_state).data());
+        u8g2_DrawStr(u8g2, TEXT_X, STATIC::PAGE::LINE1, makeWifiHint(wifi_state).data());
         u8g2_DrawStr(u8g2, TEXT_X, STATIC::PAGE::LINE2, 
-        (chain_stage == NetworkTaskStateMsg::ChainStage::CS_Idle &&
-         error != NetworkTaskStateMsg::ChainError::E_None) 
-        ? error_hint(error).data() : chain_hint(chain_stage).data());
+            (chain_stage == NetworkTaskStateMsg::ChainStage::CS_Idle &&
+                   error != NetworkTaskStateMsg::ChainError::E_None    ) ? makeErrorHint(error).data() : 
+                                                                           makeChainHint(chain_stage).data());
     }
 
     static constexpr uint8_t TEXT_X = 75;
 };
-
-/**
- * @brief Profile Configuration Page
- *        4 profiles slots are listed column-wise, when cursor is on a profile
- *        it's displayed as inverted. When clicked, enter the right side of the page
- *        where 2 options "Load" and "Delete" are available to choose from.
- *        At the bottom of the profile list an "Add" is provided
- */
 
 class ProfilePage : public ArgosPage
 {
@@ -182,83 +171,84 @@ class ProfilePage : public ArgosPage
 
         const uint8_t ascent  = u8g2_GetAscent(u8g2);
         const uint8_t descent = -u8g2_GetDescent(u8g2);
-        const uint8_t frame_y = STATIC::PAGE::LINE1 - ascent - 2;
+
+        /* Graph frame placement */
+        const uint8_t frame_y = STATIC::PAGE::LINE1 - ascent - 2;        
         const uint8_t frame_h = (STATIC::PAGE::LINE3 - STATIC::PAGE::LINE1) + ascent + descent + 2;
 
-        const uint8_t space_w = u8g2_GetStrWidth(u8g2, " ");
-        const uint8_t l_w = u8g2_GetStrWidth(u8g2, "[");
-        const uint8_t r_w = u8g2_GetStrWidth(u8g2, "]");
-        const uint8_t inner_w = FRAME_X - GAP - BRACKET_X - l_w - r_w;
-        const uint8_t n = inner_w / space_w;
+        /* Empty slot placement */
+        const uint8_t         space_width = u8g2_GetStrWidth(u8g2, " "); 
+        const uint8_t  left_bracket_width = u8g2_GetStrWidth(u8g2, "[");
+        const uint8_t right_bracket_width = u8g2_GetStrWidth(u8g2, "]");
+        const uint8_t inner_bracket_width = FRAME_X - GAP - BRACKET_X - left_bracket_width - right_bracket_width;
+        const uint8_t n = inner_bracket_width / space_width;
         const std::string spaces(n, ' ');
-        const std::string bracket = "[" + spaces + "]";
+        const std::string bracket = "[" + spaces + "]";               // an empty slot string like "[     ]"
 
-        for (uint8_t i = 0; i < Slot::MAX_NUM; ++i) {
+        /* Slot Area */
+        for (uint8_t i = 0; i < Slot::MAX_NUM; ++i) {                 // draw 3 slots
             uint8_t y = STATIC::PAGE::LINE1 + i * (STATIC::PAGE::LINE2 - STATIC::PAGE::LINE1);
-            bool is_cursor = (mode == MenuMode::Slot && slot.cursor == i);
+            u8g2_DrawStr(u8g2, BRACKET_X, y, bracket.c_str());        // draw empty slot
 
-            if (is_cursor) {
-                u8g2_SetDrawColor(u8g2, 1);
-                u8g2_DrawBox(u8g2, BRACKET_X + 2, y - ascent - 1, FRAME_X - GAP - BRACKET_X - 4, ascent + descent);
-                u8g2_SetDrawColor(u8g2, 0);
-            }
-
-            u8g2_DrawStr(u8g2, BRACKET_X, y, bracket.c_str());
-
-            std::string_view name = systate.profile_list[i].data();
-            if (name[0]) {
-                uint8_t name_w = u8g2_GetStrWidth(u8g2, name.data());
-                uint8_t name_x = BRACKET_X + l_w + (inner_w - name_w) / 2;
+            std::string_view name = systate.profile_list[i].data();   // draw profile name if exists
+            if (!name.empty()) {
+                uint8_t name_width = u8g2_GetStrWidth(u8g2, name.data());
+                uint8_t name_x = BRACKET_X + left_bracket_width + (inner_bracket_width - name_width) / 2;
                 u8g2_DrawStr(u8g2, name_x, y, name.data());
             }
 
-            if (is_cursor) u8g2_SetDrawColor(u8g2, 1);
+            if (mode == MenuMode::Slot && slot.cursor == i) {                                          // highlight
+                setPencilMode(u8g2, PencilMode::Invert);
+                u8g2_DrawBox(u8g2, BRACKET_X + 2,
+                                   y - ascent - 1,
+                                   FRAME_X - GAP - BRACKET_X - 4,
+                                   ascent + descent);
+                setPencilMode(u8g2, PencilMode::Solid);
+            }
         }
 
-        u8g2_DrawFrame(u8g2, FRAME_X, frame_y, FRAME_W, frame_h);
+        /* Option Area */
+        u8g2_DrawFrame(u8g2, FRAME_X, frame_y, FRAME_WIDTH, frame_h);
+        uint8_t divider_y   = frame_y + frame_h / 2;
+        u8g2_DrawHLine(u8g2, FRAME_X + 2, divider_y, FRAME_WIDTH - 4);   // divider
 
-        bool is_option_mode = (mode == MenuMode::Option);
-        uint8_t mid_y   = frame_y + frame_h / 2;
-        uint8_t top_mid = frame_y + frame_h / 4;
-        uint8_t bot_mid = frame_y + frame_h * 3 / 4;
+        /* Draw slot ordinal name */
+        static constexpr std::array<const char*, 3> ordinal = {"1st Slot", "2nd Slot", "3rd Slot"};
+        uint8_t ordinal_width = u8g2_GetStrWidth(u8g2, ordinal[slot.cursor]); // draw slot ordinal name
+        uint8_t ordinal_x     = FRAME_X + (FRAME_WIDTH - ordinal_width) / 2;
+        uint8_t ordinal_y     = frame_y + frame_h / 4 + ascent / 2; 
+        u8g2_DrawStr(u8g2, ordinal_x, ordinal_y , ordinal[slot.cursor]);
 
-        u8g2_DrawHLine(u8g2, FRAME_X + 2, mid_y, FRAME_W - 4);
+        /* Draw option buttons */
+        uint8_t frame_bottom_mid = frame_y + frame_h * 3 / 4;
+        uint8_t btn_y   = frame_bottom_mid + ascent / 2;
+        uint8_t box_y   = frame_bottom_mid - ascent / 2 - 2;
+        uint8_t box_h   = ascent + descent;
 
-        static constexpr const char* ordinal[] = {"1st Slot", "2nd Slot", "3rd Slot"};
-        uint8_t w = u8g2_GetStrWidth(u8g2, ordinal[slot.cursor]);
-        u8g2_DrawStr(u8g2, FRAME_X + (FRAME_W - w) / 2, top_mid + ascent / 2, ordinal[slot.cursor]);
-
-        auto drawBtn = [&](const char* text, uint8_t opt_idx) {
-            uint8_t btn_w = u8g2_GetStrWidth(u8g2, text);
-            uint8_t third_w = (FRAME_W - 4) / 2;
-            uint8_t bx = FRAME_X + 2 + third_w * opt_idx + (third_w - btn_w) / 2;
-            uint8_t by = bot_mid + ascent / 2;
-            bool highlight = (is_option_mode && option.cursor == opt_idx);
-            if (highlight) {
-                u8g2_SetDrawColor(u8g2, 1);
-                u8g2_DrawBox(u8g2, bx + 4, bot_mid - ascent / 2 - 2, btn_w - 8, ascent + descent);
-                u8g2_SetDrawColor(u8g2, 0);
+        if (systate.profile_list[slot.cursor].data()[0] == '\0') {
+            uint8_t add_width = u8g2_GetStrWidth(u8g2, "[ADD]");
+            uint8_t add_x     = FRAME_X + (FRAME_WIDTH - add_width) / 2;
+            u8g2_DrawStr(u8g2, add_x, btn_y, "[ADD]");
+            if (mode == MenuMode::Option) {
+                setPencilMode(u8g2, PencilMode::Invert);
+                u8g2_DrawBox(u8g2, add_x + 2, box_y, add_width - 4, box_h);
+                setPencilMode(u8g2, PencilMode::Solid);
             }
-            u8g2_DrawStr(u8g2, bx, by, text);
-            if (highlight) u8g2_SetDrawColor(u8g2, 1);
-        };
-
-        bool empty = (systate.profile_list[slot.cursor].data()[0] == '\0');
-        if (empty) {
-            uint8_t btn_w = u8g2_GetStrWidth(u8g2, "[ADD]");
-            uint8_t bx = FRAME_X + (FRAME_W - btn_w) / 2;
-            uint8_t by = bot_mid + ascent / 2;
-            bool highlight = is_option_mode;
-            if (highlight) {
-                u8g2_SetDrawColor(u8g2, 1);
-                u8g2_DrawBox(u8g2, bx + 4, bot_mid - ascent / 2 - 2, btn_w - 8, ascent + descent);
-                u8g2_SetDrawColor(u8g2, 0);
+        }
+        else {
+            uint8_t inner_frame_half_width = (FRAME_WIDTH - 4) / 2; 
+            static constexpr std::array<const char*, 2> labels = {"[LOAD]", "[DEL]"};
+            for (uint8_t i = 0; i < 2; ++i) {
+                uint8_t btn_width = u8g2_GetStrWidth(u8g2, labels[i]);
+                uint8_t btn_x     = FRAME_X + 2 + inner_frame_half_width * i + 
+                                    (inner_frame_half_width - btn_width) / 2;
+                u8g2_DrawStr(u8g2, btn_x, btn_y, labels[i]);
+                if ((mode == MenuMode::Option && option.cursor == i)) {
+                    setPencilMode(u8g2, PencilMode::Invert);
+                    u8g2_DrawBox(u8g2, btn_x + 2, box_y, btn_width - 4, box_h);
+                    setPencilMode(u8g2, PencilMode::Solid);
+                }
             }
-            u8g2_DrawStr(u8g2, bx, by, "[ADD]");
-            if (highlight) u8g2_SetDrawColor(u8g2, 1);
-        } else {
-            drawBtn("[LOAD]", 0);
-            drawBtn("[DEL]", 1);
         }
     }
 
@@ -332,7 +322,7 @@ class ProfilePage : public ArgosPage
     }mode = MenuMode::Slot;
     static constexpr uint8_t BRACKET_X = 2 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
     static constexpr uint8_t FRAME_X   = HWINFO::WIDTH / 2;
-    static constexpr uint8_t FRAME_W   = HWINFO::WIDTH - FRAME_X - STATIC::PAGE::TEXT_GAP_FROM_LEFT;
+    static constexpr uint8_t FRAME_WIDTH   = HWINFO::WIDTH - FRAME_X - STATIC::PAGE::TEXT_GAP_FROM_LEFT;
     static constexpr uint8_t GAP       = 2 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
 
     struct Slot{
@@ -361,35 +351,32 @@ class InfoPage : public ArgosPage
         const uint8_t frame_y = STATIC::PAGE::LINE1 - ascent - 2;
         const uint8_t frame_h = (STATIC::PAGE::LINE3 - STATIC::PAGE::LINE1) + ascent + descent + 2;
         const uint8_t max_px  = FRAME_X - GAP - LABEL_X;
-        const bool in_stack   = systate.isEnterStack;
-
-        uint8_t count = buildItems(systate.system_info, max_px, u8g2);
+        
+        uint8_t count = buildItems(systate.system_info);
 
         for (uint8_t i = 0; i < MAX_VISIBLE && (scroll + i) < count; ++i) {
             uint8_t idx = scroll + i;
             uint8_t y   = STATIC::PAGE::LINE1 + i * (STATIC::PAGE::LINE2 - STATIC::PAGE::LINE1);
-            bool is_cursor = in_stack && (idx == cursor);
-
-            if (is_cursor) {
-                u8g2_SetDrawColor(u8g2, 1);
+            if (systate.isEnterStack && (idx == cursor)) {
+                setPencilMode(u8g2, PencilMode::Solid);
                 u8g2_DrawRBox(u8g2, LABEL_X - 1, y - ascent - 1, max_px, ascent + descent + 1, 1);
-                u8g2_SetDrawColor(u8g2, 0);
+                setPencilMode(u8g2, PencilMode::Hollow);
             }
 
-            u8g2_DrawStr(u8g2, LABEL_X, y, lines[idx]);
-            if (is_cursor) u8g2_SetDrawColor(u8g2, 1);
+            u8g2_DrawStr(u8g2, LABEL_X, y, lines[idx].data());
+            if (systate.isEnterStack && (idx == cursor)) setPencilMode(u8g2, PencilMode::Solid);
         }
 
-        u8g2_DrawFrame(u8g2, FRAME_X, frame_y, FRAME_W, frame_h);
+        u8g2_DrawFrame(u8g2, FRAME_X, frame_y, FRAME_WIDTH, frame_h);
 
         const uint8_t gx = FRAME_X + 4;
         const uint8_t gy = frame_y + 4;
-        const uint8_t gw = FRAME_W - 8;
+        const uint8_t graph_width = FRAME_WIDTH - 8;
         const uint8_t gh = frame_h - 8;
 
         /* Temp graph: 5 dots evenly spaced across frame */
         uint8_t tx[5];
-        for (uint8_t i = 0; i < 5; ++i) tx[i] = gx + i * gw / 4;
+        for (uint8_t i = 0; i < 5; ++i) tx[i] = gx + i * graph_width / 4;
 
         float ct = systate.system_info.cpu_temp;
         if (ct > 0 && ct != temp_history[temp_idx]) {
@@ -413,7 +400,7 @@ class InfoPage : public ArgosPage
     }
 
     UIMsg onEvent(Encoder::EncoderMsg msg, const SystemState& systate) override {
-        buildItems(systate.system_info, 0, nullptr);
+        buildItems(systate.system_info);
         uint8_t count = line_count;
 
         if      (msg == EncoderMsg::RotateRight && cursor < count - 1) { cursor++; if (cursor >= scroll + MAX_VISIBLE) scroll++; }
@@ -426,46 +413,37 @@ class InfoPage : public ArgosPage
     void onExit() override {}
 
     private:
-    static constexpr uint8_t MAX_VISIBLE = 3;
+    static constexpr uint8_t MAX_VISIBLE = 3; // max system info lines visiable at once
     static constexpr uint8_t MAX_LINES   = 8;
     static constexpr uint8_t LABEL_X     = 2 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
     static constexpr uint8_t FRAME_X     = HWINFO::WIDTH * 2 / 3;
-    static constexpr uint8_t FRAME_W     = HWINFO::WIDTH - FRAME_X - STATIC::PAGE::TEXT_GAP_FROM_LEFT;
+    static constexpr uint8_t FRAME_WIDTH     = HWINFO::WIDTH - FRAME_X - STATIC::PAGE::TEXT_GAP_FROM_LEFT;
     static constexpr uint8_t GAP         = 2 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
 
     uint8_t cursor = 0;
     uint8_t scroll = 0;
     uint8_t line_count = 0;
-    char lines[MAX_LINES][64] = {};
-
-    float   temp_history[5] = {};
-    uint8_t temp_idx = 4;
-
-    uint8_t buildItems(const SystemInfoMsg& info, uint8_t max_px, u8g2_t* u8g2) {
+    std::array<std::array<char, 64>, MAX_LINES> lines = {}; // system info buffer 
+    uint8_t buildItems(const SystemInfoMsg& info) {         // fill buffer
         uint8_t n = 0;
-        auto add = [&](const char* label, const char* fmt, ...) __attribute__((format(printf, 3, 4))) {
-            int pos = snprintf(lines[n], sizeof(lines[n]), "%s ", label);
-            va_list args;
-            va_start(args, fmt);
-            vsnprintf(lines[n] + pos, sizeof(lines[n]) - pos, fmt, args);
-            va_end(args);
-            if (u8g2 && u8g2_GetStrWidth(u8g2, lines[n]) > max_px) {
-                while (lines[n][0] && u8g2_GetStrWidth(u8g2, lines[n]) + u8g2_GetStrWidth(u8g2, "..") > max_px)
-                    lines[n][strlen(lines[n]) - 1] = '\0';
-                strcat(lines[n], "..");
-            }
-            n++;
-        };
-
-        if (info.os[0]) add("Host:", "%s (%s)", info.host_name, info.os);
-        else            add("Host:", "%s", info.host_name);
-        add("CPU:", "%dC/%dT %dMHz %.1f%%", info.cpu_cores, info.cpu_threads, info.cpu_core_freq, (double)info.cpu_usage);
-        add("Temp:", "%.1fC", (double)info.cpu_temp);
-        add("MEM:", "%d/%d MB %.1f%%", info.mem_used, info.mem_total, (double)info.mem_usage);
-        add("Disk:", "%d/%d MB %.1f%%", info.disk_used, info.disk_total, (double)info.disk_usage);
+        if (info.os[0]) snprintf(lines[n++].data(), 64, "Host: %s (%s)", info.host_name, info.os);
+        else            snprintf(lines[n++].data(), 64, "Host: %s",  info.host_name);
+        snprintf(lines[n++].data(), 64, "CPU: %dC/%dT %dMHz %.1f%%", info.cpu_cores,     // CPU
+                                                                     info.cpu_threads, 
+                                                                     info.cpu_core_freq, 
+                                                             (double)info.cpu_usage);
+        snprintf(lines[n++].data(), 64, "Temp: %.1fC",  (double)info.cpu_temp);          // Core temp
+        snprintf(lines[n++].data(), 64, "MEM: %d/%d MB %.1f%%", info.mem_used,           // Memory
+                                                                info.mem_total, 
+                                                        (double)info.mem_usage);
+        snprintf(lines[n++].data(), 64, "Disk: %d/%d MB %.1f%%",info.disk_used,          // Disk
+                                                                info.disk_total, 
+                                                        (double)info.disk_usage);
         line_count = n;
         return n;
     }
+    float   temp_history[5] = {};
+    uint8_t temp_idx = 4;
 };
 
 /* STABLE VERSION DO NOT MODIFY */
