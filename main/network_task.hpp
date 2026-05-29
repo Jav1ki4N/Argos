@@ -6,7 +6,6 @@
 /* Global */
 #include "cJSON.h"
 #include "freertos/idf_additions.h"
-#include "ddc.hpp"
 #include "network/ddc_http_client.hpp"
 #include "network/ddc_mdns.hpp"
 #include "network.hpp"
