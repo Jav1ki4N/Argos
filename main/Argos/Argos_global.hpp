@@ -8,7 +8,6 @@
 #include "ddc.hpp"
 #include "../network.hpp"
 #include "devices/ddc_encoder.hpp"
-#include "Argos_icons.hpp"
 #include <variant>
 
 

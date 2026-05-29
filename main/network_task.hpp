@@ -13,6 +13,7 @@
 #include "Argos/Argos_global.hpp"
 #include "web/root_html.hpp"
 
+/* C/C++ */
 #include <atomic>
 #include <variant>
 #include <memory>
@@ -65,12 +66,10 @@ class NetworkTask {
                                ChainTargetDiscovery,
                                ChainReceiveInfo>;
 
-    void init()
-    {
+    void init() {
         network2ui_state_q = xQueueCreate(3, sizeof(NetworkTaskStateMsg));
         network2ui_info_q  = xQueueCreate(3, sizeof(SystemInfoMsg));
         vault.mkdir("/profile");
-
     }
 
     QueueHandle_t getStateQueue() { return network2ui_state_q; }
@@ -93,7 +92,9 @@ class NetworkTask {
 
     void tick(QueueHandle_t ui2network_command_q) {
         dispatcher(ui2network_command_q);
-        std::visit([this](auto& c) { execute(c); }, active_chain);
+        std::visit( [this](auto& c){ execute(c); }, active_chain); // get current chain object from variant
+                                                                   // and execute
+                                                                   // this capture for lambda to call member func 
         applyChain();
     }
 

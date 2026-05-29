@@ -16,16 +16,14 @@ TaskHandle_t network_task_handle;
 TaskHandle_t input_task_handle;
 TaskHandle_t ui_task_handle;
 
-extern "C" void app_main(void)
-{
+extern "C" void app_main(void) {
     vTaskSuspendAll();
     xTaskCreate(network_task, "Network Task", 4096, nullptr,        2, &network_task_handle);
     xTaskCreate(Input_Task,   "Input Task",   2048, nullptr,        4, &input_task_handle);
     xTaskCreate(UI_Task,      "UI Task",      4096, nullptr,        3, &ui_task_handle);
     xTaskResumeAll();
 
-    for (;;)
-    {
+    for (;;) {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }

@@ -2,14 +2,12 @@
 #pragma once
 
 /* Includes */
-
 /* Framework Global */
 #include "Argos_global.hpp"
-#include "ddc.hpp"
 
 /* Graphics */
 #include "network.hpp"
-#include "network/ddc_wifi.hpp"
+#include "Argos_icons.hpp"
 #include "u8g2.h"
 #include <stdint.h>
 
@@ -309,9 +307,9 @@ class ProfilePage : public ArgosPage
 
     void onExit() override {
         /* Reset all states */
-        mode = MenuMode::Slot;
-        slot.isEmpty = false;
-        slot.cursor = 0;
+        mode          = MenuMode::Slot;
+        slot.isEmpty  = false;
+        slot.cursor   = 0;
         option.cursor = 0;
     }
 
@@ -320,10 +318,10 @@ class ProfilePage : public ArgosPage
         Slot,
         Option
     }mode = MenuMode::Slot;
-    static constexpr uint8_t BRACKET_X = 2 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
-    static constexpr uint8_t FRAME_X   = HWINFO::WIDTH / 2;
-    static constexpr uint8_t FRAME_WIDTH   = HWINFO::WIDTH - FRAME_X - STATIC::PAGE::TEXT_GAP_FROM_LEFT;
-    static constexpr uint8_t GAP       = 2 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
+    static constexpr uint8_t BRACKET_X   = 2 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
+    static constexpr uint8_t FRAME_X     = HWINFO::WIDTH / 2;
+    static constexpr uint8_t FRAME_WIDTH = HWINFO::WIDTH - FRAME_X - STATIC::PAGE::TEXT_GAP_FROM_LEFT;
+    static constexpr uint8_t GAP         = 2 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
 
     struct Slot{
         bool isEmpty = false;
@@ -352,19 +350,17 @@ class InfoPage : public ArgosPage
         const uint8_t frame_h = (STATIC::PAGE::LINE3 - STATIC::PAGE::LINE1) + ascent + descent + 2;
         const uint8_t max_px  = FRAME_X - GAP - LABEL_X;
         
-        uint8_t count = buildItems(systate.system_info);
+        buildItems(systate.system_info);
 
-        for (uint8_t i = 0; i < MAX_VISIBLE && (scroll + i) < count; ++i) {
+        for (uint8_t i = 0; i < MAX_VISIBLE && (scroll + i) < MAX_LINES; ++i) {
             uint8_t idx = scroll + i;
             uint8_t y   = STATIC::PAGE::LINE1 + i * (STATIC::PAGE::LINE2 - STATIC::PAGE::LINE1);
-            if (systate.isEnterStack && (idx == cursor)) {
-                setPencilMode(u8g2, PencilMode::Solid);
-                u8g2_DrawRBox(u8g2, LABEL_X - 1, y - ascent - 1, max_px, ascent + descent + 1, 1);
-                setPencilMode(u8g2, PencilMode::Hollow);
-            }
-
             u8g2_DrawStr(u8g2, LABEL_X, y, lines[idx].data());
-            if (systate.isEnterStack && (idx == cursor)) setPencilMode(u8g2, PencilMode::Solid);
+            if (systate.isEnterStack && (idx == cursor)) {
+                setPencilMode(u8g2, PencilMode::Invert);
+                u8g2_DrawRBox(u8g2, LABEL_X - 1, y - ascent - 1, max_px, ascent + descent + 1, 1);
+                setPencilMode(u8g2, PencilMode::Solid);
+            }
         }
 
         u8g2_DrawFrame(u8g2, FRAME_X, frame_y, FRAME_WIDTH, frame_h);
@@ -401,46 +397,43 @@ class InfoPage : public ArgosPage
 
     UIMsg onEvent(Encoder::EncoderMsg msg, const SystemState& systate) override {
         buildItems(systate.system_info);
-        uint8_t count = line_count;
 
-        if      (msg == EncoderMsg::RotateRight && cursor < count - 1) { cursor++; if (cursor >= scroll + MAX_VISIBLE) scroll++; }
-        else if (msg == EncoderMsg::RotateLeft  && cursor > 0)          { cursor--; if (cursor <  scroll)               scroll--; }
+        if      (msg == EncoderMsg::RotateRight && cursor < MAX_LINES - 1) { cursor++; if (cursor >= scroll + MAX_VISIBLE) scroll++; }
+        else if (msg == EncoderMsg::RotateLeft  && cursor > 0)             { cursor--; if (cursor <  scroll)               scroll--; }
         else if (msg == EncoderMsg::ButtonHeld) return UIMsg{PageCommand::PC_Exit, std::monostate{}};
         return makeEmptyMsg();
     }
 
     void onEnter() override { cursor = 0; scroll = 0; }
-    void onExit() override {}
+    void onExit () override {}
 
     private:
     static constexpr uint8_t MAX_VISIBLE = 3; // max system info lines visiable at once
-    static constexpr uint8_t MAX_LINES   = 8;
+    static constexpr uint8_t MAX_LINES   = 5; // max system info lines in total
     static constexpr uint8_t LABEL_X     = 2 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
     static constexpr uint8_t FRAME_X     = HWINFO::WIDTH * 2 / 3;
-    static constexpr uint8_t FRAME_WIDTH     = HWINFO::WIDTH - FRAME_X - STATIC::PAGE::TEXT_GAP_FROM_LEFT;
+    static constexpr uint8_t FRAME_WIDTH = HWINFO::WIDTH - FRAME_X - STATIC::PAGE::TEXT_GAP_FROM_LEFT;
     static constexpr uint8_t GAP         = 2 * STATIC::PAGE::TEXT_GAP_FROM_LEFT;
 
     uint8_t cursor = 0;
     uint8_t scroll = 0;
-    uint8_t line_count = 0;
-    std::array<std::array<char, 64>, MAX_LINES> lines = {}; // system info buffer 
-    uint8_t buildItems(const SystemInfoMsg& info) {         // fill buffer
+
+    std::array<std::array<char, 64>, MAX_LINES> lines = {};
+    void buildItems(const SystemInfoMsg& info) {
         uint8_t n = 0;
         if (info.os[0]) snprintf(lines[n++].data(), 64, "Host: %s (%s)", info.host_name, info.os);
-        else            snprintf(lines[n++].data(), 64, "Host: %s",  info.host_name);
-        snprintf(lines[n++].data(), 64, "CPU: %dC/%dT %dMHz %.1f%%", info.cpu_cores,     // CPU
-                                                                     info.cpu_threads, 
-                                                                     info.cpu_core_freq, 
-                                                             (double)info.cpu_usage);
-        snprintf(lines[n++].data(), 64, "Temp: %.1fC",  (double)info.cpu_temp);          // Core temp
-        snprintf(lines[n++].data(), 64, "MEM: %d/%d MB %.1f%%", info.mem_used,           // Memory
-                                                                info.mem_total, 
-                                                        (double)info.mem_usage);
-        snprintf(lines[n++].data(), 64, "Disk: %d/%d MB %.1f%%",info.disk_used,          // Disk
-                                                                info.disk_total, 
-                                                        (double)info.disk_usage);
-        line_count = n;
-        return n;
+        else            snprintf(lines[n++].data(), 64, "Host: %s",      info.host_name);
+        snprintf(lines[n++].data(), 64, "CPU: %dC/%dT %dMHz %.1f%%",     info.cpu_cores,
+                                                                         info.cpu_threads,
+                                                                         info.cpu_core_freq,
+                                                                 (double)info.cpu_usage);
+        snprintf(lines[n++].data(), 64, "Temp: %.1fC",           (double)info.cpu_temp);
+        snprintf(lines[n++].data(), 64, "MEM: %d/%d MB %.1f%%",          info.mem_used,
+                                                                         info.mem_total,
+                                                                 (double)info.mem_usage);
+        snprintf(lines[n++].data(), 64, "Disk: %d/%d MB %.1f%%",         info.disk_used,
+                                                                         info.disk_total,
+                                                                 (double)info.disk_usage);
     }
     float   temp_history[5] = {};
     uint8_t temp_idx = 4;

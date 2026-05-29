@@ -11,8 +11,7 @@
 
 QueueHandle_t ui2network_command_q = nullptr;
 
-void UI_Task(void *arg)
-{
+void UI_Task(void *arg) {
     //SSD1322 *framework = static_cast<SSD1322 *>(arg);
 
     /** Hardware Initialization
@@ -35,8 +34,7 @@ void UI_Task(void *arg)
     ui2network_command_q = framework.getNetworkTaskCommandQueue();
     xTaskNotifyGive(network_task_handle);
     
-    for (;;)
-    {
+    for (;;) {
         framework.render();
         // /* Consume WIFI + Input messages before rendering */
         // UI_UpdateState(framework->get_UIAppState(), client_q, input_q);

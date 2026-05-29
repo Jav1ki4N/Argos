@@ -1,24 +1,17 @@
 
 #pragma once
 
-/* Includes */
+/* Custom */
 #include "Argos_global.hpp"
-#include <dirent.h>
-#include <string_view>
-
-/* DDC */
-#include "ddc.hpp"
+#include "Argos_Page.hpp"
 
 /* C/C++ */
 #include <memory>
 #include <time.h>
+#include <dirent.h>
+#include <string_view>
 
-/* Tasks */
-#include "../network.hpp"
-
-#include "Argos_global.hpp"
-#include "Argos_Page.hpp"
-#include "devices/ddc_encoder.hpp"
+/* Third-Party */
 #include "freertos/idf_additions.h"
 
 class ArgosFramework
@@ -26,8 +19,7 @@ class ArgosFramework
     public:
     
     explicit ArgosFramework(SSD1322 &display):
-    u8g2(display.get_U8g2())
-    {
+    u8g2(display.get_U8g2()) {
         ui2network_command_q = xQueueCreate(3, sizeof(UIMsg));
     }
     ~ArgosFramework() = default;
@@ -155,14 +147,18 @@ class ArgosFramework
 
         /* Refresh profile list from LittleFS */
         for (auto& p : systate.profile_list) p[0] = '\0';
-        auto dir = std::unique_ptr<DIR, decltype(&closedir)>{opendir("/lfs/profile"), closedir};
+        auto dir = std::unique_ptr<DIR, decltype(&closedir)> {
+            opendir("/lfs/profile"), // constructor
+            closedir                 // deleter
+        };
         if (dir) {
             uint8_t i = 0;
-            while (dirent* entry = readdir(dir.get())) {
-                if (!std::string_view{entry->d_name}.ends_with(".txt")) continue;
-                std::string name(entry->d_name);
-                name.resize(name.size() - 4); // strip ".txt"
-                strlcpy(systate.profile_list[i].data(), name.c_str(), 64);
+            while (dirent* entry = readdir(dir.get())) { // readdir expects a raw pointer *DIR
+                                                         // traversing all files in profile directory
+                if (!std::string_view{entry->d_name}.ends_with(".txt")) continue; // ignore non txt
+                std::string name(entry->d_name);         // get file name
+                name.resize(name.size() - 4);            // strip ".txt"
+                strlcpy(systate.profile_list[i].data(), name.c_str(), 64); 
                 if (++i >= 3) break;
             }
         }
@@ -197,7 +193,7 @@ class ArgosFramework
             /* When in stack, curr_depth is always positive */
             if(curr_depth > 0 ){
                 stack[curr_depth-1] = nullptr; // Clear pointer to popped page
-                --curr_depth; // Move down the stack
+                --curr_depth;                  // Move down the stack
             }
         };
         //  func   top
@@ -307,42 +303,6 @@ class ArgosFramework
         drawTabs();
         drawTime();
     }
-
-    /****/
-
-    /**
-     * Initialization
-     * @brief Initialize system state 
-     */
-
-     void getProfileList()
-     {
-        std::string_view profile_dir = "/lfs/profile"; // where profile stored
-        uint8_t count = 0;
-
-        DIR* dir = opendir(profile_dir.data()); // POSIX API to read directory
-        if(!dir)return; //failed to open
-       
-        while(dirent* entry = readdir(dir)) {
-            if(count >= system_state.profile_list.size()) break;
-            std::string_view name = entry->d_name; // file name
-
-            auto pos = name.find_last_of('.');
-            if(pos == std::string_view::npos)continue;
-            std::string_view ext = name.substr(pos); // file extension
-            if(ext != ".txt")continue; // not a profile file, skip
-
-            std::string_view base = name.substr(0, pos); // raw filename without extension
-            auto& dst = system_state.profile_list[count];
-
-            size_t len = std::min(base.size(), dst.size() - 1);
-            std::memcpy(dst.data(), base.data(), len);
-            dst[len] = '\0';
-            ++count;
-        }
-        closedir(dir);
-        system_state.if2UpdateProfileList = false; // reset flag after update
-     }
 
     /**
      * Command Handler

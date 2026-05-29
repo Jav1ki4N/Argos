@@ -1,6 +1,5 @@
 
 # pragma once
-#include <string_view>
 #include "freertos/idf_additions.h"
 
 /** Network Globals
