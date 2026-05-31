@@ -39,8 +39,8 @@ struct Profile
      int   mem_used      = 0;
      float mem_usage     = 0.0f;
 
-     int   disk_total    = 0;
-     int   disk_used     = 0;
+     float disk_total_gb = 0.0f;
+     float disk_used_gb  = 0.0f;
      float disk_usage    = 0.0f;
  };
 

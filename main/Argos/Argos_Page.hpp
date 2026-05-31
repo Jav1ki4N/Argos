@@ -431,8 +431,8 @@ class InfoPage : public ArgosPage
         snprintf(lines[n++].data(), 64, "MEM: %d/%d MB %.1f%%",          info.mem_used,
                                                                          info.mem_total,
                                                                  (double)info.mem_usage);
-        snprintf(lines[n++].data(), 64, "Disk: %d/%d MB %.1f%%",         info.disk_used,
-                                                                         info.disk_total,
+        snprintf(lines[n++].data(), 64, "Disk: %.1f/%.1f GB %.1f%%",     (double)info.disk_used_gb,
+                                                                         (double)info.disk_total_gb,
                                                                  (double)info.disk_usage);
     }
     float   temp_history[5] = {};

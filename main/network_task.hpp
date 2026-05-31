@@ -55,6 +55,7 @@ class NetworkTask {
 
     struct ChainReceiveInfo {
         std::string ip;
+        uint16_t port = 8080;
         std::unique_ptr<HttpClient> http_client;
     };
 
@@ -105,7 +106,7 @@ class NetworkTask {
     NetworkTaskStateMsg    state_msg = {};
     QueueHandle_t network2ui_state_q = nullptr;
     
-    std::string_view TARGET_HOSTNAME = "argos-target";
+    std::string_view TARGET_INSTANCE = "argos";
     std::string_view AP_SSID = "Argos";
     std::string_view AP_PASSWORD = "clairvoyance";
     static constexpr uint8_t MAX_PROFILE = 3;
@@ -292,10 +293,10 @@ class NetworkTask {
             state_msg.chain_stage = CS_TargetDiscovery;
             queueSendNetworkState();
         }
-        std::string ip = chain.mdns->queryForIP(TARGET_HOSTNAME.data());
+        auto svc = chain.mdns->queryForService(TARGET_INSTANCE.data());
 
-        if(!ip.empty()) {                                                        // Target found
-            pending_chain = ChainReceiveInfo{std::move(ip), nullptr};
+        if(!svc.ip.empty()) {                                                        // Target found
+            pending_chain = ChainReceiveInfo{std::move(svc.ip), svc.port, nullptr};
             queueSendNetworkState();
             return;
         }
@@ -315,7 +316,7 @@ class NetworkTask {
         using enum NetworkTaskStateMsg::ChainError;
         using enum NetworkTaskStateMsg::WiFiState;
         if(!chain.http_client) {
-            std::string url = "http://" + chain.ip + ":8080/api/info";
+            std::string url = "http://" + chain.ip + ":" + std::to_string(chain.port) + "/api/info";
             chain.http_client = std::make_unique<HttpClient>(url.c_str());         // Create HTTP client instance if not exist
             state_msg.chain_stage = CS_ReceivingInfo;
             state_msg.error       = E_None;
@@ -340,8 +341,8 @@ class NetworkTask {
                 jsonGetInt  (root, "mem_total_mb",  sys_info_msg.mem_total);
                 jsonGetInt  (root, "mem_used_mb",   sys_info_msg.mem_used);
                 jsonGetFloat(root, "mem_percent",   sys_info_msg.mem_usage);
-                jsonGetInt  (root, "disk_total_mb", sys_info_msg.disk_total);
-                jsonGetInt  (root, "disk_used_mb",  sys_info_msg.disk_used);
+                jsonGetFloat(root, "disk_total_gb", sys_info_msg.disk_total_gb);
+                jsonGetFloat(root, "disk_used_gb",  sys_info_msg.disk_used_gb);
                 jsonGetFloat(root, "disk_percent",  sys_info_msg.disk_usage);
                 queueSendSystemInfo();
             }
