@@ -37,7 +37,7 @@
 
 Argos 由两部分组成：
 
-1. **PC 端代理**（`./run_server`）—— 采集系统指标（CPU、内存、磁盘、操作系统信息）并以 JSON HTTP 接口形式暴露在 `8080` 端口。
+1. **目标代理**（`deploy/launch.go`）—— 基于 Go 的系统指标采集程序（CPU、内存、磁盘、操作系统、温度），通过 mDNS 广播并以 JSON HTTP 接口形式暴露在 `8080` 端口。
 
 2. **ESP32 设备** —— 连接到同一 Wi‑Fi 网络，每秒轮询 `/api/info` 接口，解析 JSON 响应并渲染到 OLED 屏幕。
 
@@ -86,52 +86,56 @@ git clone https://github.com/espressif/esp-protocols.git components/espressif__m
 
 > 要求 **ESP‑IDF ≥ 5.0**。
 
-### PC 端代理
+### 目标代理
 
-跨平台 Python 服务端；详见[部署](#1-pc-端代理)。
+跨平台 Go 代理；详见[部署](#1-目标代理)。
 
-| 包                                                                 | 版本   |
-| ------------------------------------------------------------------- | ------ |
-| [Flask](https://github.com/pallets/flask)                           | 3.1.3  |
-| [psutil](https://github.com/giampaolo/psutil)                       | 7.2.2  |
-| [zeroconf](https://github.com/jstasiak/python-zeroconf)             | 0.149.7|
+| 包 | 版本 |
+|---|---|
+| [gopsutil](https://github.com/shirou/gopsutil) | v4.26.4 |
+| [zeroconf](https://github.com/grandcat/zeroconf) | v1.0.0 |
+
+[`deploy/`](deploy/) 目录下提供了 Linux (amd64/arm64) 和 Windows (amd64) 的预编译二进制文件。
 
 ---
 
 ## 部署
 
-### 1. PC 端代理
+### 1. 目标代理
 
-在目标机器上使用 [`./linux`](./linux) 目录下的 `run_server.py` 脚本启动服务：
+[`deploy/`](deploy/) 目录下提供了预编译二进制文件，选择对应平台：
 
-```bash
-git clone https://github.com/Jav1ki4N/Argos.git
-cd linux
-chmod +x run_server.py
-./run_server.py
-```
-
-如果缺少依赖，可以使用 `requirements.txt` 引导 pip 安装：
+| 二进制文件 | 平台 | 状态 |
+|---|---|---|
+| `deploy/linux/launch_amd64` | Linux x86‑64 | 已验证（**Ubuntu** 24.04 / 22.04） |
+| `deploy/linux/launch_arm64` | Linux ARM64（如 **树莓派**） | 未验证 |
+| `deploy/windows/launch.exe` | Windows x86‑64 | 未验证 |
 
 ```bash
-pip install -r requirements.txt
+# Linux
+chmod +x deploy/linux/launch_amd64
+./deploy/linux/launch_amd64
+
+# Windows
+deploy\windows\launch.exe
 ```
 
-或手动安装：
+从源码构建：
 
 ```bash
-pip install flask psutil zeroconf
+go mod download
 ```
 
-统一的二进制可执行文件正在构筑中，你也可以自己使用 Pyinstaller 等工具构建。
+```bash
+cd deploy
+GOOS=linux GOARCH=amd64 go build -o linux/launch_amd64 launch.go
+```
 
 **验证接口：**
 
 ```bash
 curl http://$(hostname -I | awk '{print $1}'):8080/api/info
 ```
-
-Python 依赖详见[组件依赖](#pc-端代理)。
 
 ### 2. 强制门户
 
@@ -219,6 +223,7 @@ Prototype 版本用于功能验证，存在以下已知问题：
 - [x] mDNS 自动发现目标设备
 - [x] 基于堆栈的 UI 状态机
 - [x] 网络任务状态机重写
+- [x] 用 Go 重写 PC 端服务
 - [ ] ADC 电池监测
 - [ ] UI 重写
 - [ ] 离线时间获取

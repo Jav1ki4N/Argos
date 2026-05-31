@@ -28,6 +28,7 @@ Save named configuration profiles to Argos and load them on demand. Each profile
 
 <div align="center">
   <img src="./assets/gallery/argos_info.png" width="600" alt="Argos device">
+
   <img src="./assets/gallery/example.gif" width="600" alt="Argos demo">
   <p><em>Argos in action</em></p>
 </div>
@@ -38,7 +39,7 @@ Save named configuration profiles to Argos and load them on demand. Each profile
 
 Argos has two components:
 
-1. **PC-side server** (`/linux/run_server.py`) — a python script that collects system metrics (CPU, memory, disk, OS) and exposes them as a JSON HTTP endpoint on port `8080`.
+1. **Target agent** (`deploy/launch.go`) — a Go program that collects system metrics (CPU, memory, disk, OS, temperature) and exposes them as a JSON HTTP endpoint on port `8080`, advertising via mDNS.
 
 2. **ESP32 device** — connects to the same Wi‑Fi network, polls `/api/info` every second, parses the JSON response, and renders the data on the OLED display.
 
@@ -87,51 +88,56 @@ git clone https://github.com/espressif/esp-protocols.git components/espressif__m
 
 > Requires **ESP‑IDF ≥ 5.0**.
 
-### PC Server
+### Target Agent
 
-Cross‑platform Python server; see [Deployment](#1-pc-agent-server) for setup.
+Cross‑platform Go agent; see [Deployment](#1-target-agent) for setup.
 
-| Package                                                           | Version |
-| ----------------------------------------------------------------- | ------- |
-| [Flask](https://github.com/pallets/flask)                         | 3.1.3   |
-| [psutil](https://github.com/giampaolo/psutil)                     | 7.2.2   |
-| [zeroconf](https://github.com/jstasiak/python-zeroconf)           | 0.149.7 |
+| Package | Version |
+|---|---|
+| [gopsutil](https://github.com/shirou/gopsutil) | v4.26.4 |
+| [zeroconf](https://github.com/grandcat/zeroconf) | v1.0.0 |
+
+Pre‑built binaries are included for Linux (amd64/arm64) and Windows (amd64) under [`deploy/`](deploy/).
 
 ---
 
 ## Deployment
 
-### 1. PC Agent (Server)
+### 1. Target Agent
 
-A `run_server.py` script is provided under [`./linux`](./linux) to launch the server on the target machine.
+Pre‑built binaries are provided under [`deploy/`](deploy/). Pick the one matching your platform:
 
-```bash
-git clone https://github.com/Jav1ki4N/Argos.git
-cd linux
-chmod +x run_server.py
-./run_server.py
-```
-If you don't have all the dependencies, there's a `requirements.txt` that guides pip to install all of them:
+| Binary                      | Platform                            | Status                                   |
+| --------------------------- | ----------------------------------- | ---------------------------------------- |
+| `deploy/linux/launch_amd64` | Linux x86‑64                        | `Verified` with **Ubuntu** 24.04 / 22.04 |
+| `deploy/linux/launch_arm64` | Linux ARM64 (e.g. **Raspberry Pi**) | `Unverified`                             |
+| `deploy/windows/launch.exe` | Windows x86‑64                      | `Unverified`                             |
 
 ```bash
-pip freeze > requirements.txt
+# Linux
+chmod +x deploy/linux/launch_amd64
+./deploy/linux/launch_amd64
+
+# Windows
+deploy\windows\launch.exe
 ```
 
-or do it manually:
+To build from source:
 
 ```bash
-pip install flask psutil zeroconf
+go mod download
 ```
 
-A binary is working in progress, you shall be able to build your own with Pyinstaller and many other.
+```bash
+cd deploy
+GOOS=linux GOARCH=amd64 go build -o linux/launch_amd64 launch.go
+```
 
 **Verify the endpoint:**
 
 ```bash
 curl http://$(hostname -I | awk '{print $1}'):8080/api/info
 ```
-
-See [Components](#pc-agent) for Python dependency details.
 
 ### 2. Captive Portal
 
@@ -222,6 +228,7 @@ The prototype revision — built for testing — has several known issues:
 - [x] Stack‑based UI FSM
 - [x] Network task FSM rewrite
 - [x] UI rewrite
+- [x] Rewrite PC-Side service with Go
 - [ ] Battery monitoring via ADC
 - [ ] Offline time acquisition
 - [ ] …

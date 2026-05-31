@@ -276,8 +276,54 @@ From `partitions.csv`:
 | spiffs (LittleFS) | 0x2A0000 | 0x160000 (~1.375MB) |
 
 
+# Target Agent (`deploy/`)
+
+The target agent is a companion Go program that runs on the monitored machine (Linux / Windows). It collects system telemetry and exposes it over HTTP, so the ESP32 device can poll it via `ChainReceiveInfo`.
+
+```
+deploy/
+├── launch.go          # Main source
+├── go.mod / go.sum    # Go module
+├── linux/
+│   ├── launch_amd64   # Pre-built binary (x86-64)
+│   └── launch_arm64   # Pre-built binary (ARM64)
+└── windows/
+    └── launch.exe     # Pre-built binary (x86-64)
+```
+
+## How It Works
+
+1. **mDNS registration** — uses `zeroconf` to broadcast as `argos-target._http._tcp.local` on port 8080, with a TXT record `path=/api/info`.
+2. **HTTP endpoint** — `GET /api/info` returns a JSON payload with live system metrics.
+3. The ESP32 `ChainTargetDiscovery` resolves the mDNS name, then `ChainReceiveInfo` polls `/api/info` at 1 Hz.
+
+## System Info Collected
+
+Uses `gopsutil/v4` to gather:
+
+| Field | Source |
+|---|---|
+| `cpu_percent` | `cpu.Percent(500ms)` |
+| `cpu_cores`, `cpu_threads` | `cpu.Counts(false/true)` |
+| `cpu_freq_mhz` | `cpu.Info()[0].Mhz` |
+| `cpu_temp` | `sensors.SensorsTemperatures()` — probes coretemp, k10temp, cpu, cpu_thermal, soc, package |
+| `mem_total_mb`, `mem_used_mb`, `mem_percent` | `mem.VirtualMemory()` |
+| `disk_total_gb`, `disk_used_gb`, `disk_percent` | `disk.Usage("/")` |
+| `host_name`, `os`, `os_version`, `uptime_s` | `host.Info()` |
+
+## Building
+
+```bash
+cd deploy
+GOOS=linux GOARCH=amd64 go build -o linux/launch_amd64 launch.go
+GOOS=linux GOARCH=arm64 go build -o linux/launch_arm64 launch.go
+GOOS=windows GOARCH=amd64 go build -o windows/launch.exe launch.go
+```
+
+
 # Build System
 
-- **Build framework**: ESP-IDF 5.5.4, CMake ≥ 3.16.
+- **Firmware framework**: ESP-IDF 5.5.4, CMake ≥ 3.16.
 - **Target**: ESP32-C3.
 - **Main component sources**: `ui.cpp`, `input.cpp`, `network.cpp`, `main.cpp` + globbed `*.cpp`.
+- **Target agent**: Go 1.26.3, cross-compiled for Linux (amd64/arm64) and Windows (amd64).
