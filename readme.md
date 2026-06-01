@@ -103,34 +103,93 @@ Pre‑built binaries are included for Linux (amd64/arm64) and Windows (amd64) un
 
 ## Deployment
 
-### 1. Target Agent
+## 1. Target Agent
+
+### Binary
 
 Pre‑built binaries are provided under [`deploy/`](deploy/). Pick the one matching your platform:
 
 | Binary                      | Platform                            | Status                                   |
 | --------------------------- | ----------------------------------- | ---------------------------------------- |
-| `deploy/linux/launch_amd64` | Linux x86‑64                        | `Verified` with **Ubuntu** 24.04 / 22.04 |
-| `deploy/linux/launch_arm64` | Linux ARM64 (e.g. **Raspberry Pi**) | `Unverified`                             |
-| `deploy/windows/launch.exe` | Windows x86‑64                      | `Unverified`                             |
+| `deploy/linux/amd64/argos-linux-amd64` | Linux x86‑64                        | `Verified` with **Ubuntu** 24.04 / 22.04 |
+| `deploy/linux/arm64/argos-linux-arm64` | Linux ARM64 (e.g. **Raspberry Pi**) | `Unverified`                             |
+| `deploy/windows/argos-windows-amd64.exe` | Windows x86‑64                      | `Unverified`                             |
 
 ```bash
 # Linux
-chmod +x deploy/linux/launch_amd64
-./deploy/linux/launch_amd64
+chmod +x deploy/linux/amd64/argos-linux-amd64
+./deploy/linux/amd64/argos-linux-amd64
 
 # Windows
-deploy\windows\launch.exe
+deploy\windows\argos-windows-amd64.exe
 ```
 
-To build from source:
+A better practice is to just to rename the binary as `argos`, which saves a lot of troubles, then:
 
 ```bash
+sudo mv argos /usr/local/bin/
+```
+
+### Build from source:
+
+To build from source you must enter the root directory where `go.mod` is :
+
+```bash
+cd deploy
 go mod download
 ```
 
 ```bash
-cd deploy
-GOOS=linux GOARCH=amd64 go build -o linux/launch_amd64 launch.go
+# Example platform: linux amd64
+GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o argos .
+```
+
+### Usage
+
+The binary launches argos service in the target machine via cli.
+
+```bash
+# check current version
+cd linux/amd64
+./argos-linux-amd64 --version
+                       ___                         
+                      /   |  _________ _____  _____
+                     / /| | / ___/ __ `/ __ \/ ___/
+                    / ___ |/ /  / /_/ / /_/ (__  ) 
+                   /_/  |_/_/   \__, /\____/____/  
+                               /____/              
+
+===========================================================================
+     2026 @ i4N  https://github.com/Jav1ki4N/Argos | Version: Prototype
+```
+
+```bash
+# start server, you may add -v or --verbose so the program will print verbose information
+# of the data collected in JSON on every http request
+./argos-linux-amd64 start
+2026/06/01 20:38:36 [Argos]: mDNS broadcasting: argos-target.local → 198.18.0.1:8080
+2026/06/01 20:38:36 [Argos]: Service is started. You may connect your ESP32 device to this server
+2026/06/01 20:38:36 [Argos]: This process could fail if you are using a VPN, it's advised to launch the server before connecting to a VPN
+2026/06/01 20:38:36 [Argos]: Press Ctrl+C to stop the server  
+```
+
+```bash
+# use -h or --help or help to learn more about the detailed usage
+./argos-linux-amd64 --help
+
+argos [-v | --version] [-h | --help | help] <command>
+
+===========================================================================
+
+flags:
+	-v, --version Show the current version of Argos
+	-h, --help    Show this help message
+
+commands:
+	start[-v | --verbose] Start the Argos server to monitor and control your
+	ESP32 devices. Use -v or --verbose for detailed logging.
+
+===========================================================================
 ```
 
 **Verify the endpoint:**

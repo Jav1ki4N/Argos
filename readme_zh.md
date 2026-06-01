@@ -107,28 +107,84 @@ git clone https://github.com/espressif/esp-protocols.git components/espressif__m
 
 | 二进制文件 | 平台 | 状态 |
 |---|---|---|
-| `deploy/linux/launch_amd64` | Linux x86‑64 | 已验证（**Ubuntu** 24.04 / 22.04） |
-| `deploy/linux/launch_arm64` | Linux ARM64（如 **树莓派**） | 未验证 |
-| `deploy/windows/launch.exe` | Windows x86‑64 | 未验证 |
+| `deploy/linux/amd64/argos-linux-amd64` | Linux x86‑64 | 已验证（**Ubuntu** 24.04 / 22.04） |
+| `deploy/linux/arm64/argos-linux-arm64` | Linux ARM64（如 **树莓派**） | 未验证 |
+| `deploy/windows/argos-windows-amd64.exe` | Windows x86‑64 | 未验证 |
 
 ```bash
 # Linux
-chmod +x deploy/linux/launch_amd64
-./deploy/linux/launch_amd64
+chmod +x deploy/linux/amd64/argos-linux-amd64
+./deploy/linux/amd64/argos-linux-amd64
 
 # Windows
-deploy\windows\launch.exe
+deploy\windows\argos-windows-amd64.exe
 ```
 
-从源码构建：
+更好的做法是将二进制文件重命名为 `argos`，可以省去很多麻烦，然后：
 
 ```bash
+sudo mv argos /usr/local/bin/
+```
+
+### 从源码构建：
+
+进入 `go.mod` 所在根目录：
+
+```bash
+cd deploy
 go mod download
 ```
 
 ```bash
-cd deploy
-GOOS=linux GOARCH=amd64 go build -o linux/launch_amd64 launch.go
+# 示例平台：linux amd64
+GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o argos .
+```
+
+### 用法
+
+二进制文件通过 CLI 在目标机器上启动 Argos 服务。
+
+```bash
+# 查看当前版本
+cd linux/amd64
+./argos-linux-amd64 --version
+                       ___                         
+                      /   |  _________ _____  _____
+                     / /| | / ___/ __ `/ __ \/ ___/
+                    / ___ |/ /  / /_/ / /_/ (__  ) 
+                   /_/  |_/_/   \__, /\____/____/  
+                               /____/              
+
+===========================================================================
+     2026 @ i4N  https://github.com/Jav1ki4N/Argos | Version: Prototype
+```
+
+```bash
+# 启动服务器，可添加 -v 或 --verbose 以在每次 HTTP 请求时打印详细的 JSON 数据
+./argos-linux-amd64 start
+2026/06/01 20:38:36 [Argos]: mDNS broadcasting: argos-target.local → 198.18.0.1:8080
+2026/06/01 20:38:36 [Argos]: Service is started. You may connect your ESP32 device to this server
+2026/06/01 20:38:36 [Argos]: This process could fail if you are using a VPN, it's advised to launch the server before connecting to a VPN
+2026/06/01 20:38:36 [Argos]: Press Ctrl+C to stop the server  
+```
+
+```bash
+# 使用 -h、--help 或 help 了解详细用法
+./argos-linux-amd64 --help
+
+argos [-v | --version] [-h | --help | help] <command>
+
+===========================================================================
+
+flags:
+	-v, --version Show the current version of Argos
+	-h, --help    Show this help message
+
+commands:
+	start[-v | --verbose] Start the Argos server to monitor and control your
+	ESP32 devices. Use -v or --verbose for detailed logging.
+
+===========================================================================
 ```
 
 **验证接口：**

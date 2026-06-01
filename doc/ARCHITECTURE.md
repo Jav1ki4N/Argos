@@ -282,13 +282,18 @@ The target agent is a companion Go program that runs on the monitored machine (L
 
 ```
 deploy/
-├── launch.go          # Main source
-├── go.mod / go.sum    # Go module
+├── launch.go              # Entry point (calls cmd.Execute())
+├── go.mod / go.sum        # Go module
+├── cmd/
+│   ├── root.go            # Root command (logo, version, help)
+│   └── start.go           # start subcommand (HTTP/mDNS server)
 ├── linux/
-│   ├── launch_amd64   # Pre-built binary (x86-64)
-│   └── launch_arm64   # Pre-built binary (ARM64)
+│   ├── amd64/
+│   │   └── argos-linux-amd64   # Pre-built binary (x86-64)
+│   └── arm64/
+│       └── argos-linux-arm64   # Pre-built binary (ARM64)
 └── windows/
-    └── launch.exe     # Pre-built binary (x86-64)
+    └── argos-windows-amd64.exe # Pre-built binary (x86-64)
 ```
 
 ## How It Works
@@ -315,10 +320,21 @@ Uses `gopsutil/v4` to gather:
 
 ```bash
 cd deploy
-GOOS=linux GOARCH=amd64 go build -o linux/launch_amd64 launch.go
-GOOS=linux GOARCH=arm64 go build -o linux/launch_arm64 launch.go
-GOOS=windows GOARCH=amd64 go build -o windows/launch.exe launch.go
+GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o linux/amd64/argos-linux-amd64 .
+GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o linux/arm64/argos-linux-arm64 .
+GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o windows/argos-windows-amd64.exe .
 ```
+
+## Deploy CLI
+
+The `deploy/` agent is a command-line program built with `github.com/spf13/cobra`.
+
+- **`argos`** (no args) — prints a centered, colorized ASCII logo/banner with version and attribution.
+- **`argos start`** — starts the HTTP/mDNS server that the ESP32 polls.
+- **`argos -v, --version`** — shows the agent version (via logo banner).
+- **`argos -h, --help`** — shows usage and available commands.
+- **`argos start -v, --verbose`** — starts the server with verbose logging (prints collected JSON on each request).
+
 
 
 # Build System
