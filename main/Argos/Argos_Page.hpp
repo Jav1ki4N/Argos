@@ -357,8 +357,17 @@ class InfoPage : public ArgosPage
             uint8_t y   = STATIC::PAGE::LINE1 + i * (STATIC::PAGE::LINE2 - STATIC::PAGE::LINE1);
             u8g2_DrawStr(u8g2, LABEL_X, y, lines[idx].data());
             if (systate.isEnterStack && (idx == cursor)) {
+                uint8_t hx = LABEL_X - 1;
+                uint8_t hy = y - ascent - 2;
+                uint8_t hw = max_px;
+                uint8_t hh = ascent + descent + 1;
                 setPencilMode(u8g2, PencilMode::Invert);
-                u8g2_DrawRBox(u8g2, LABEL_X - 1, y - ascent - 1, max_px, ascent + descent + 1, 1);
+                u8g2_DrawBox(u8g2, hx, hy, hw, hh);
+                /* 1px round corners: re-invert the 4 corner pixels */
+                u8g2_DrawPixel(u8g2, hx,      hy);       // top-left
+                u8g2_DrawPixel(u8g2, hx+hw-1, hy);       // top-right
+                u8g2_DrawPixel(u8g2, hx,      hy+hh-1);  // bottom-left
+                u8g2_DrawPixel(u8g2, hx+hw-1, hy+hh-1);  // bottom-right
                 setPencilMode(u8g2, PencilMode::Solid);
             }
         }

@@ -92,6 +92,7 @@ git clone https://github.com/espressif/esp-protocols.git components/espressif__m
 
 | 包 | 版本 |
 |---|---|
+| [cobra](https://github.com/spf13/cobra) | v1.10.2 |
 | [gopsutil](https://github.com/shirou/gopsutil) | v4.26.4 |
 | [zeroconf](https://github.com/grandcat/zeroconf) | v1.0.0 |
 
