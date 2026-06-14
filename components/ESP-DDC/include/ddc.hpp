@@ -33,4 +33,5 @@
 #include "network/ddc_http_server.hpp"
 #include "network/ddc_dns_server.hpp"
 #include "network/ddc_mdns.hpp"
+#include "network/ddc_mqtt.hpp"
 

@@ -33,6 +33,8 @@ CompileFlags:
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_http_client/include
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/esp_http_server/include
     - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/http_parser
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/mqtt/esp-mqtt/include
+    - -I/home/i4n/.espressif/v5.5.4/esp-idf/components/tcp_transport/include
 
 
 InlayHints:

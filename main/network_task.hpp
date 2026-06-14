@@ -7,6 +7,7 @@
 #include "cJSON.h"
 #include "freertos/idf_additions.h"
 #include "network/ddc_http_client.hpp"
+#include "network/ddc_mqtt.hpp"
 #include "network/ddc_mdns.hpp"
 #include "network.hpp"
 #include "Argos/Argos_global.hpp"
@@ -55,8 +56,8 @@ class NetworkTask {
 
     struct ChainReceiveInfo {
         std::string ip;
-        uint16_t port = 8080;
-        std::unique_ptr<HttpClient> http_client;
+        uint16_t    port = 1883;
+        std::unique_ptr<MQTTClient> mqtt;
     };
 
     using Chain = std::variant<std::monostate,
@@ -293,7 +294,7 @@ class NetworkTask {
             state_msg.chain_stage = CS_TargetDiscovery;
             queueSendNetworkState();
         }
-        auto svc = chain.mdns->queryForService(TARGET_INSTANCE.data());
+        auto svc = chain.mdns->queryForService(TARGET_INSTANCE.data(), "_mqtt");
 
         if(!svc.ip.empty()) {                                                        // Target found
             pending_chain = ChainReceiveInfo{std::move(svc.ip), svc.port, nullptr};
@@ -307,25 +308,77 @@ class NetworkTask {
         }
     }
 
-    /** Chain: Receive Info
-     *  @brief Poll target device via HTTP for system info, parse JSON, send to UI. On failure fall back to Idle
+    /** Chain: Receive Info (MQTT)
+     *  @brief Connect to MQTT broker, subscribe to system info topic. Data arrives via callback.
      *  @param chain The receive info chain to execute
      */
     void execute(ChainReceiveInfo& chain){
         using enum NetworkTaskStateMsg::ChainStage;
         using enum NetworkTaskStateMsg::ChainError;
         using enum NetworkTaskStateMsg::WiFiState;
+        if(!chain.mqtt) {
+            std::string uri = "mqtt://" + chain.ip + ":" + std::to_string(chain.port);
+            chain.mqtt = std::make_unique<MQTTClient>(uri.c_str(), "argos-esp32");
+            chain.mqtt->onConnect = [&chain]() {
+                chain.mqtt->subscribe("argos/info");
+            };
+            chain.mqtt->onDisconnect = [this]() {
+                setError(E_TargetLost);
+                queueSendNetworkState();
+            };
+            chain.mqtt->onRecvData = [this](const char* topic, int topic_len,
+                                             const char* data, int data_len) {
+                std::string json(data, data_len);
+                auto root_handler = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>{
+                    cJSON_Parse(json.c_str()), cJSON_Delete
+                };
+                cJSON* root = root_handler.get();
+                if(root) {
+                    jsonGetStr  (root, "host_name",     sys_info_msg.host_name,     sizeof(sys_info_msg.host_name));
+                    jsonGetStr  (root, "os",            sys_info_msg.os,            sizeof(sys_info_msg.os));
+                    jsonGetStr  (root, "os_version",    sys_info_msg.os_distro,     sizeof(sys_info_msg.os_distro));
+                    jsonGetFloat(root, "cpu_percent",   sys_info_msg.cpu_usage);
+                    jsonGetInt  (root, "cpu_cores",     sys_info_msg.cpu_cores);
+                    jsonGetInt  (root, "cpu_threads",   sys_info_msg.cpu_threads);
+                    jsonGetInt  (root, "cpu_freq_mhz",  sys_info_msg.cpu_core_freq);
+                    jsonGetFloat(root, "cpu_temp",      sys_info_msg.cpu_temp);
+                    jsonGetInt  (root, "mem_total_mb",  sys_info_msg.mem_total);
+                    jsonGetInt  (root, "mem_used_mb",   sys_info_msg.mem_used);
+                    jsonGetFloat(root, "mem_percent",   sys_info_msg.mem_usage);
+                    jsonGetFloat(root, "disk_total_gb", sys_info_msg.disk_total_gb);
+                    jsonGetFloat(root, "disk_used_gb",  sys_info_msg.disk_used_gb);
+                    jsonGetFloat(root, "disk_percent",  sys_info_msg.disk_usage);
+                    queueSendSystemInfo();
+                } else {
+                    setError(E_FailedToParseInfo);
+                    queueSendNetworkState();
+                }
+            };
+            chain.mqtt->start();
+            state_msg.chain_stage = CS_ReceivingInfo;
+            state_msg.error       = E_None;
+            queueSendNetworkState();
+        }
+    }
+
+    /*
+    //  HTTP based info receiving (deprecated, kept for reference)
+    //  ver.prototype
+    void execute(ChainReceiveInfo& chain){
+        using enum NetworkTaskStateMsg::ChainStage;
+        using enum NetworkTaskStateMsg::ChainError;
+        using enum NetworkTaskStateMsg::WiFiState;
         if(!chain.http_client) {
             std::string url = "http://" + chain.ip + ":" + std::to_string(chain.port) + "/api/info";
-            chain.http_client = std::make_unique<HttpClient>(url.c_str());         // Create HTTP client instance if not exist
+            chain.http_client = std::make_unique<HttpClient>(url.c_str());
             state_msg.chain_stage = CS_ReceivingInfo;
             state_msg.error       = E_None;
             queueSendNetworkState();
         }
 
-        HttpClient::Msg msg = chain.http_client->Get_ManualPerform();            // Perform HTTP GET request
+        HttpClient::Msg msg = chain.http_client->Get_ManualPerform();
         if (msg.status_code == 200 && !msg.body.empty()) {
-            auto root_handler = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>{ // Parse JSON response
+            auto root_handler = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>{
                 cJSON_Parse(msg.body.c_str()), cJSON_Delete
             };
             cJSON* root = root_handler.get();
@@ -347,15 +400,16 @@ class NetworkTask {
                 queueSendSystemInfo();
             }
             else {
-                setError(E_FailedToParseInfo);                                              // JSON parsing failed
+                setError(E_FailedToParseInfo);
                 queueSendNetworkState();
             }
         }
         else {
-            setError(E_TargetLost);                                              // HTTP request failed, target lost
+            setError(E_TargetLost);
             queueSendNetworkState();
         }
     }
+    */
 
     void execute (ChainAddProfile& chain) {
         using enum NetworkTaskStateMsg::ChainStage;

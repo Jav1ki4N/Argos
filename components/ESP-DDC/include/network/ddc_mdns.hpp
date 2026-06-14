@@ -73,25 +73,32 @@ class mDNS
         }
 
         for (auto* r = results; r; r = r->next) {
-            if (!r->addr) continue;
             if (instance && r->instance_name && strcmp(instance, r->instance_name) != 0) continue;
 
-            for (auto* a = r->addr; a; a = a->next) {
-                if (a->addr.type != ESP_IPADDR_TYPE_V4) continue;
-
-                auto& ip4 = a->addr.u_addr.ip4;
-                ServiceInfo info;
-                char ip_str[16];
-                snprintf(ip_str, sizeof(ip_str), IPSTR, IP2STR(&ip4));
-                info.ip   = ip_str;
-                info.port = r->port;
-
-                ESP_LOGI(TAG, "Found %s (%s.%s) at " IPSTR ":%d",
-                         r->instance_name, service, proto, IP2STR(&ip4), r->port);
-
-                mdns_query_results_free(results);
-                return info;
+            esp_ip4_addr_t resolved = {};
+            if (r->addr) {
+                for (auto* a = r->addr; a; a = a->next) {
+                    if (a->addr.type != ESP_IPADDR_TYPE_V4) continue;
+                    resolved = a->addr.u_addr.ip4;
+                    break;
+                }
             }
+
+            if (resolved.addr == 0 && r->hostname) {
+                ESP_LOGI(TAG, "addr null, querying A record for '%s'", r->hostname);
+                mdns_query_a(r->hostname, timeout, &resolved);
+            }
+
+            if (resolved.addr == 0) continue;
+
+            char ip_str[16];
+            snprintf(ip_str, sizeof(ip_str), IPSTR, IP2STR(&resolved));
+            ServiceInfo info;
+            info.ip   = ip_str;
+            info.port = r->port;
+            ESP_LOGI(TAG, "Found %s at %s:%d", r->instance_name, ip_str, r->port);
+            mdns_query_results_free(results);
+            return info;
         }
 
         ESP_LOGW(TAG, "Instance '%s' not found in %s.%s results", instance, service, proto);
