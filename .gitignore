@@ -46,6 +46,7 @@ managed_components/
 /components/esp_littlefs
 /components/espressif__mdns
 /private/
+.vscode/
 /.argos_env/
 
 /linux/build/
