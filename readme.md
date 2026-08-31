@@ -11,6 +11,8 @@
 
 **Argos** (*Ἄργος*) is an ESP32-C3-powered system monitor that displays real‑time host metrics on a `256×64` OLED screen:
 
+> **Project status:** Argos is currently a functional prototype, not a production-ready V1.0 release. The core device/agent telemetry path works, while reproducible firmware builds, automated tests, configuration hardening, and the next PCB revision remain in progress.
+
 | Category     | Metrics                                      |
 | ------------ | -------------------------------------------- |
 | **Hostname** | System hostname                              |
@@ -18,11 +20,11 @@
 | **Memory**   | Total, used, usage %                         |
 | **Disk**     | Total, used, usage %                         |
 | **OS**       | Type, distro, version                        |
-| **Clock**    | UTC and local time                           |
+| **Clock**    | SNTP-synchronized local time                 |
 
 ### Profiles
 
-Save named configuration profiles to Argos and load them on demand. Each profile stores Wi‑Fi credentials, NTP server settings, and more. Delete profiles you no longer need directly from the device. Currently the device supports max to 3 profiles.
+Save named configuration profiles to Argos and load them on demand. Each profile stores Wi‑Fi credentials and an NTP server setting. Profiles can be deleted from the device; the current prototype supports up to three slots.
 
 ---
 
@@ -39,26 +41,28 @@ Save named configuration profiles to Argos and load them on demand. Each profile
 
 Argos has two components:
 
-1. **Target agent** (`deploy/launch.go`) — a Go program that collects system metrics (CPU, memory, disk, OS, temperature) and exposes them as a JSON HTTP endpoint on port `8080`, advertising via mDNS.
+1. **Target agent** (`deploy/`) — a Go program that collects system metrics (CPU, memory, disk, OS, temperature), runs an MQTT broker on port `1883`, advertises `_mqtt._tcp` through mDNS, and publishes JSON telemetry to `argos/info` every two seconds.
 
-2. **ESP32 device** — connects to the same Wi‑Fi network, polls `/api/info` every second, parses the JSON response, and renders the data on the OLED display.
+2. **ESP32 device** — connects to the same Wi‑Fi network, discovers the `argos` MQTT service through mDNS, subscribes to `argos/info`, parses each JSON message, and renders the data on the OLED display.
 
 ```mermaid
 graph TD
-  A["Target Device<br/>Run Server"]
-  B["Argos: SoftAP<br/>& HTTP Server"]
-  C["Captive Portal"]
-  D["Argos: STA<br/>& HTTP Client"]
+  A["Target Device<br/>MQTT Agent"]
+  B["Argos: SoftAP<br/>& Captive Portal"]
+  C["Browser"]
+  D["Argos: STA<br/>& MQTT Client"]
   E["Argos: UI"]
   F["Argos: Encoder"]
 
-  B -->|"launch"| C
-  C -->|"POST config"| B
-  B -->|"switch to STA"| D
-  D -->|"GET /api/info"| A
-  A -->|"JSON"| D
-  D -->|"parsed data"| E
   F -->|"input events"| E
+  E -->|"ADD profile"| B
+  B -->|"serve portal"| C
+  C -->|"POST /save"| B
+  B -->|"saved → idle"| E
+  E -->|"LOAD profile"| D
+  D -->|"mDNS discovery + subscribe"| A
+  A -->|"argos/info JSON"| D
+  D -->|"parsed data"| E
 ```
 
 ---
@@ -67,26 +71,21 @@ graph TD
 
 ### Firmware (ESP32)
 
-**[`ESP-DDC`](./components/ESP-DDC)** is the project's own custom component — it contains all of Argos' firmware logic and is the only one tracked in git. The remaining components are third‑party, **gitignored**, and must be obtained before building:
+**[`ESP-DDC`](./components/ESP-DDC)** is the project's custom ESP-IDF abstraction component and is tracked in git. The third-party components below are intentionally gitignored and must exist before a firmware build. Consequently, a clean checkout is not yet self-contained.
 
-| Component                                                    | Source                                                                 | Purpose                         |
-| ------------------------------------------------------------ | ---------------------------------------------------------------------- | ------------------------------- |
-| [u8g2](https://github.com/olikraus/u8g2)                     | `git clone https://github.com/olikraus/u8g2.git components/u8g2`       | OLED graphics (SSD1322 via SPI) |
-| [esp_littlefs](https://github.com/joltwallet/esp_littlefs)   | `git clone https://github.com/joltwallet/esp_littlefs.git components/esp_littlefs` | Fail‑safe flash filesystem      |
-| [espressif__mdns](https://github.com/espressif/esp-protocols)| `git clone https://github.com/espressif/esp-protocols.git components/espressif__mdns` | mDNS service discovery          |
+| Component | Expected directory | Purpose |
+|---|---|---|
+| [u8g2](https://github.com/olikraus/u8g2) | `components/u8g2` | OLED graphics (SSD1322 via SPI) |
+| [esp_littlefs](https://github.com/joltwallet/esp_littlefs) | `components/esp_littlefs` | LittleFS integration |
+| [espressif/mdns](https://components.espressif.com/components/espressif/mdns) | `components/espressif__mdns` | mDNS service discovery |
 
-```bash
-# One‑liner to clone all missing components:
-git clone https://github.com/olikraus/u8g2.git components/u8g2
-git clone https://github.com/joltwallet/esp_littlefs.git components/esp_littlefs
-git clone https://github.com/espressif/esp-protocols.git components/espressif__mdns
-```
+There is currently no supported one-command dependency bootstrap: the component manifest, local directory layout, and ESP-DDC include paths still need to be normalized. Use versions compatible with ESP-IDF 5.5.4 and verify the include layout before building.
 
 **ESP‑IDF framework** — provided by the SDK:
 
-`driver` · `esp_wifi` · `nvs_flash` · `esp_http_client` · `esp_http_server` · `esp_timer` · `esp_netif` · `mdns` · `cJSON` · `esp_event` · `freertos` · `lwip`
+`driver` · `esp_wifi` · `nvs_flash` · `esp_http_client` · `esp_http_server` · `esp_timer` · `esp_netif` · `mdns` · `mqtt` · `cJSON` · `esp_event` · `freertos` · `lwip`
 
-> Requires **ESP‑IDF ≥ 5.0**.
+> The lock file targets **ESP-IDF 5.5.4** on **ESP32-C3**. The component manifest still carries a broader legacy constraint; use 5.5.4 for the current prototype.
 
 ### Target Agent
 
@@ -97,6 +96,7 @@ Cross‑platform Go agent; see [Deployment](#1-target-agent) for setup.
 | [cobra](https://github.com/spf13/cobra) | v1.10.2 |
 | [gopsutil](https://github.com/shirou/gopsutil) | v4.26.4 |
 | [zeroconf](https://github.com/grandcat/zeroconf) | v1.0.0 |
+| [mochi-mqtt](https://github.com/mochi-mqtt/server) | v2.7.9 |
 
 Pre‑built binaries are included for Linux (amd64/arm64) and Windows (amd64) under [`deploy/`](deploy/).
 
@@ -104,7 +104,7 @@ Pre‑built binaries are included for Linux (amd64/arm64) and Windows (amd64) un
 
 ## Deployment
 
-## 1. Target Agent
+### 1. Target Agent
 
 ### Binary
 
@@ -165,13 +165,13 @@ cd linux/amd64
 ```
 
 ```bash
-# start server, you may add -v or --verbose so the program will print verbose information
-# of the data collected in JSON on every http request
+# Start the MQTT broker and telemetry publisher. Add -v/--verbose to print
+# every collected JSON payload.
 ./argos-linux-amd64 start
-2026/06/01 20:38:36 [Argos]: mDNS broadcasting: argos-target.local → 198.18.0.1:8080
-2026/06/01 20:38:36 [Argos]: Service is started. You may connect your ESP32 device to this server
-2026/06/01 20:38:36 [Argos]: This process could fail if you are using a VPN, it's advised to launch the server before connecting to a VPN
-2026/06/01 20:38:36 [Argos]: Press Ctrl+C to stop the server  
+2026/06/01 20:38:36 [Argos]: MQTT broker running on 192.168.1.10:1883
+2026/06/01 20:38:36 [Argos]: mDNS broadcasting: workstation.local → 192.168.1.10:1883
+2026/06/01 20:38:36 [Argos]: Press Ctrl+C to stop
+2026/06/01 20:38:36 [Argos]: Publishing to 'argos/info' every 2s
 ```
 
 ```bash
@@ -193,29 +193,39 @@ commands:
 ===========================================================================
 ```
 
-**Verify the endpoint:**
+**Verify telemetry** (requires an MQTT client such as Mosquitto):
 
 ```bash
-curl http://$(hostname -I | awk '{print $1}'):8080/api/info
+mosquitto_sub -h 127.0.0.1 -p 1883 -t argos/info -v
 ```
 
 ### 2. Captive Portal
 
-The ESP32 starts as a SoftAP. Connect your device to it and a DNS server redirects all queries to a **captive portal** hosted on the ESP32's flash. From there you fill in a configuration profile:
+Selecting **ADD** in the on-device profile menu starts the ESP32 SoftAP. Connect another device to it; the DNS server redirects queries to a **captive portal** hosted from the ESP32 flash. From there, fill in a configuration profile:
 
 | Field          | Description                              |
 | -------------- | ---------------------------------------- |
 | **SSID**       | Target Wi‑Fi network SSID                |
 | **Password**   | Target Wi‑Fi network password            |
 | **NTP Server** | Network Time Protocol server             |
-| **ProfileName**| Profile name (defaults to SSID)          |
+| **ProfileName** | Profile name (defaults to SSID)         |
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/captive_portal.png" alt="Captive Portal screenshot">
   <p><em>Captive Portal</em></p>
 </div>
 
-After saving, the ESP32 switches to STA mode and locates the target device via **mDNS**. A `GET` request fetches the system info JSON, which is parsed and rendered on the display.
+Saving a profile returns the device to the idle network state. On the OLED, open **NETWORK → PROFILES**, select the saved profile, and choose **LOAD**. The ESP32 then joins the configured Wi-Fi network, discovers the `argos._mqtt._tcp` service through mDNS, and subscribes to `argos/info`.
+
+> Current limitation: the NTP value is stored in the profile, but the firmware currently synchronizes against `pool.ntp.org`. Automatic loading immediately after saving is not implemented yet.
+
+### Prototype limitations
+
+- The firmware dependencies are not fetched automatically by the current manifest, so clean-checkout builds require manual component setup.
+- The captive-portal save handler still needs request-size, field, path, and write-result validation.
+- The SoftAP password is fixed in firmware and the MQTT broker accepts unauthenticated LAN clients; use only on a trusted development network.
+- `argosctl/` is a TUI prototype: its Start/Stop controls currently update UI state only and do not manage the target agent process.
+- There are currently no automated firmware or Go tests. Linux amd64 is the only pre-built target documented as hardware-tested.
 
 ---
 
@@ -289,6 +299,10 @@ The prototype revision — built for testing — has several known issues:
 - [x] Network task FSM rewrite
 - [x] UI rewrite
 - [x] Rewrite PC-Side service with Go
+- [x] MQTT telemetry transport
 - [ ] Battery monitoring via ADC
 - [ ] Offline time acquisition
+- [ ] Reproducible firmware dependency setup and CI
+- [ ] Connect `argosctl` to the real agent lifecycle
+- [ ] Harden captive-portal input and profile storage
 - [ ] …

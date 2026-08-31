@@ -10,6 +10,8 @@
 
 **Argos**（*Ἄργος*）是一台基于 ESP32‑C3 的系统监视器，在 `256×64` OLED 屏幕上实时显示主机指标：
 
+> **项目状态：** Argos 当前是可运行的功能原型，并非可用于生产环境的 V1.0。设备与主机代理之间的核心遥测链路已经实现，但可复现固件构建、自动化测试、配置安全加固和下一版 PCB 仍在进行中。
+
 | 分类         | 指标                               |
 | ------------ | ---------------------------------- |
 | **主机名**   | 系统主机名                         |
@@ -17,11 +19,11 @@
 | **内存**     | 总量、已用、使用率                 |
 | **磁盘**     | 总量、已用、使用率                 |
 | **操作系统** | 类型、发行版、版本                 |
-| **时钟**     | UTC 和本地时间                     |
+| **时钟**     | 经 SNTP 同步的本地时间              |
 
 ### 配置文件
 
-可通过强制门户将配置文件命名保存到 Argos 并按需加载。每个配置文件存储 Wi‑Fi 凭据、NTP 服务器设置等。你可以随时删除不再需要的配置文件。本项目目前支持最多3个配置槽位。
+可通过强制门户将命名配置保存到 Argos 并按需加载。每个配置包含 Wi‑Fi 凭据和 NTP 服务器设置，也可直接在设备上删除；当前原型最多支持三个配置槽位。
 
 ---
 
@@ -37,26 +39,28 @@
 
 Argos 由两部分组成：
 
-1. **目标代理**（`deploy/launch.go`）—— 基于 Go 的系统指标采集程序（CPU、内存、磁盘、操作系统、温度），通过 mDNS 广播并以 JSON HTTP 接口形式暴露在 `8080` 端口。
+1. **目标代理**（`deploy/`）—— 基于 Go 的系统指标采集程序（CPU、内存、磁盘、操作系统、温度），在 `1883` 端口运行 MQTT Broker，通过 mDNS 广播 `_mqtt._tcp` 服务，并每两秒向 `argos/info` 发布一次 JSON 遥测数据。
 
-2. **ESP32 设备** —— 连接到同一 Wi‑Fi 网络，每秒轮询 `/api/info` 接口，解析 JSON 响应并渲染到 OLED 屏幕。
+2. **ESP32 设备** —— 连接到同一 Wi‑Fi 网络，通过 mDNS 发现 `argos` MQTT 服务，订阅 `argos/info`，解析收到的 JSON 消息并渲染到 OLED 屏幕。
 
 ```mermaid
 graph TD
-  A["目标设备<br/>运行服务端"]
-  B["Argos: SoftAP<br/>& HTTP 服务"]
-  C["强制门户"]
-  D["Argos: STA<br/>& HTTP 客户端"]
+  A["目标设备<br/>MQTT 代理"]
+  B["Argos: SoftAP<br/>& 强制门户"]
+  C["浏览器"]
+  D["Argos: STA<br/>& MQTT 客户端"]
   E["Argos: UI"]
   F["Argos: 编码器"]
 
-  B -->|"启动"| C
-  C -->|"POST 配置"| B
-  B -->|"切换至 STA"| D
-  D -->|"GET /api/info"| A
-  A -->|"JSON"| D
-  D -->|"解析数据"| E
   F -->|"输入事件"| E
+  E -->|"添加配置"| B
+  B -->|"提供门户"| C
+  C -->|"POST /save"| B
+  B -->|"保存后回到空闲"| E
+  E -->|"加载配置"| D
+  D -->|"mDNS 发现并订阅"| A
+  A -->|"argos/info JSON"| D
+  D -->|"解析数据"| E
 ```
 
 ---
@@ -65,26 +69,21 @@ graph TD
 
 ### 固件 (ESP32)
 
-仅 **[`ESP-DDC`](./components/ESP-DDC)**（项目自有定制组件）纳入 git 版本管理——包含 Argos 全部固件逻辑。其余组件均为第三方库，**被 gitignore 忽略**，构建前推荐自行获取：
+**[`ESP-DDC`](./components/ESP-DDC)** 是项目自有的 ESP-IDF 抽象组件并纳入 git 管理。下列第三方组件被刻意加入 gitignore，固件构建前必须确保它们存在。因此，当前仓库尚不能仅凭干净检出直接完成固件构建。
 
-| 组件                                                          | 获取方式                                                                 | 用途                       |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------- |
-| [u8g2](https://github.com/olikraus/u8g2)                      | `git clone https://github.com/olikraus/u8g2.git components/u8g2`         | 单色图形库，用于UI构建 |
-| [esp_littlefs](https://github.com/joltwallet/esp_littlefs)    | `git clone https://github.com/joltwallet/esp_littlefs.git components/esp_littlefs` | 高可靠闪存文件系统          |
-| [espressif__mdns](https://github.com/espressif/esp-protocols) | `git clone https://github.com/espressif/esp-protocols.git components/espressif__mdns` | mDNS 服务发现               |
+| 组件 | 预期目录 | 用途 |
+|---|---|---|
+| [u8g2](https://github.com/olikraus/u8g2) | `components/u8g2` | SSD1322 OLED 图形库 |
+| [esp_littlefs](https://github.com/joltwallet/esp_littlefs) | `components/esp_littlefs` | LittleFS 集成 |
+| [espressif/mdns](https://components.espressif.com/components/espressif/mdns) | `components/espressif__mdns` | mDNS 服务发现 |
 
-```bash
-# 一键下载到本地：
-git clone https://github.com/olikraus/u8g2.git components/u8g2
-git clone https://github.com/joltwallet/esp_littlefs.git components/esp_littlefs
-git clone https://github.com/espressif/esp-protocols.git components/espressif__mdns
-```
+目前没有受支持的一键依赖初始化命令：组件清单、本地目录布局和 ESP-DDC 头文件路径仍需统一。请选用兼容 ESP-IDF 5.5.4 的版本，并在构建前核对头文件布局。
 
 **ESP‑IDF 框架** —— 由 SDK 提供：
 
-`driver` · `esp_wifi` · `nvs_flash` · `esp_http_client` · `esp_http_server` · `esp_timer` · `esp_netif` · `mdns` · `cJSON` · `esp_event` · `freertos` · `lwip`
+`driver` · `esp_wifi` · `nvs_flash` · `esp_http_client` · `esp_http_server` · `esp_timer` · `esp_netif` · `mdns` · `mqtt` · `cJSON` · `esp_event` · `freertos` · `lwip`
 
-> 要求 **ESP‑IDF ≥ 5.0**。
+> 锁文件当前固定为 **ESP-IDF 5.5.4**、目标为 **ESP32-C3**。组件清单仍保留了较宽泛的旧版本约束；当前原型建议使用 5.5.4。
 
 ### 目标代理
 
@@ -95,6 +94,7 @@ git clone https://github.com/espressif/esp-protocols.git components/espressif__m
 | [cobra](https://github.com/spf13/cobra) | v1.10.2 |
 | [gopsutil](https://github.com/shirou/gopsutil) | v4.26.4 |
 | [zeroconf](https://github.com/grandcat/zeroconf) | v1.0.0 |
+| [mochi-mqtt](https://github.com/mochi-mqtt/server) | v2.7.9 |
 
 [`deploy/`](deploy/) 目录下提供了 Linux (amd64/arm64) 和 Windows (amd64) 的预编译二进制文件。
 
@@ -161,12 +161,12 @@ cd linux/amd64
 ```
 
 ```bash
-# 启动服务器，可添加 -v 或 --verbose 以在每次 HTTP 请求时打印详细的 JSON 数据
+# 启动 MQTT Broker 和遥测发布器；添加 -v/--verbose 可打印每次采集的 JSON
 ./argos-linux-amd64 start
-2026/06/01 20:38:36 [Argos]: mDNS broadcasting: argos-target.local → 198.18.0.1:8080
-2026/06/01 20:38:36 [Argos]: Service is started. You may connect your ESP32 device to this server
-2026/06/01 20:38:36 [Argos]: This process could fail if you are using a VPN, it's advised to launch the server before connecting to a VPN
-2026/06/01 20:38:36 [Argos]: Press Ctrl+C to stop the server  
+2026/06/01 20:38:36 [Argos]: MQTT broker running on 192.168.1.10:1883
+2026/06/01 20:38:36 [Argos]: mDNS broadcasting: workstation.local → 192.168.1.10:1883
+2026/06/01 20:38:36 [Argos]: Press Ctrl+C to stop
+2026/06/01 20:38:36 [Argos]: Publishing to 'argos/info' every 2s
 ```
 
 ```bash
@@ -188,29 +188,39 @@ commands:
 ===========================================================================
 ```
 
-**验证接口：**
+**验证遥测数据**（需要安装 Mosquitto 等 MQTT 客户端）：
 
 ```bash
-curl http://$(hostname -I | awk '{print $1}'):8080/api/info
+mosquitto_sub -h 127.0.0.1 -p 1883 -t argos/info -v
 ```
 
 ### 2. 强制门户
 
-ESP32 初始以 SoftAP 模式启动。连接后，DNS 服务器将所有查询重定向到存储在 ESP32 flash 中的**强制门户**。在页面中填写配置信息：
+在设备的配置菜单中选择 **ADD** 后，ESP32 才会启动 SoftAP。使用另一台设备连接后，DNS 服务器会将查询重定向到 ESP32 flash 中的**强制门户**，然后在页面中填写配置信息：
 
 | 字段           | 描述                         |
 | -------------- | ---------------------------- |
 | **SSID**       | 目标 Wi‑Fi 网络的 SSID       |
 | **Password**   | 目标 Wi‑Fi 网络的密码        |
 | **NTP Server** | NTP 服务器地址               |
-| **ProfileName**| 配置文件名称（默认使用 SSID）|
+| **ProfileName** | 配置文件名称（默认使用 SSID）|
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/Jav1ki4N/Argos/refs/heads/master/assets/gallery/captive_portal.png" alt="强制门户截图">
   <p><em>强制门户</em></p>
 </div>
 
-保存后，ESP32 切换至 STA 模式并通过 **mDNS** 定位目标设备。发送 `GET` 请求获取系统信息 JSON，解析后渲染到显示屏。
+保存配置后，设备会回到网络空闲状态。请在 OLED 上进入 **NETWORK → PROFILES**，选择刚保存的配置并执行 **LOAD**。ESP32 随后加入目标 Wi‑Fi，通过 mDNS 发现 `argos._mqtt._tcp` 服务，并订阅 `argos/info`。
+
+> 当前限制：NTP 地址会保存到配置文件，但固件目前仍固定使用 `pool.ntp.org`；保存后自动加载新配置的功能也尚未实现。
+
+### 原型阶段限制
+
+- 当前组件清单不会自动获取全部固件依赖，干净检出后仍需手动准备组件。
+- 强制门户保存处理器仍需补充请求长度、字段、路径和写入结果校验。
+- SoftAP 密码硬编码在固件中，MQTT Broker 允许局域网客户端匿名连接；请仅在可信开发网络中使用。
+- `argosctl/` 仍是 TUI 原型，Start/Stop 目前只改变界面状态，不会管理真实的目标代理进程。
+- 当前没有固件或 Go 自动化测试；预编译目标中仅 Linux amd64 被记录为经过硬件验证。
 
 ---
 
@@ -281,7 +291,11 @@ Prototype 版本用于功能验证，存在以下已知问题：
 - [x] 基于堆栈的 UI 状态机
 - [x] 网络任务状态机重写
 - [x] 用 Go 重写 PC 端服务
+- [x] MQTT 遥测传输
 - [ ] ADC 电池监测
 - [ ] UI 重写
 - [ ] 离线时间获取
+- [ ] 可复现的固件依赖与 CI
+- [ ] 将 `argosctl` 接入真实代理生命周期
+- [ ] 加固强制门户输入与配置存储
 - [ ] …

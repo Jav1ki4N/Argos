@@ -2,7 +2,9 @@
 
 ## Overview
 
-Argos is an ESP32-C3 hardware monitoring dashboard. It displays real-time system information (CPU, memory, disk, temperature) from a remote target device on a 256x64 OLED display (SSD1322). Interaction is via a rotary encoder. WiFi connectivity, mDNS target discovery, HTTP-based telemetry polling, and a captive portal for profile provisioning are all handled on-device.
+Argos is an ESP32-C3 hardware monitoring dashboard. It displays real-time system information (CPU, memory, disk, temperature) from a remote target device on a 256x64 OLED display (SSD1322). Interaction is via a rotary encoder. WiFi connectivity, mDNS target discovery, MQTT telemetry subscription, and a captive portal for profile provisioning are all handled on-device.
+
+The repository is currently at **prototype** maturity. The architecture below documents the code on the `master` branch, including the MQTT transport that replaced the original HTTP polling implementation. Deprecated HTTP client code remains in the tree for reference but is not part of the active telemetry path.
 
 
 # Program Entrance
@@ -104,7 +106,7 @@ Each root tab has its own `PageStack` (max depth 3). Pushing/popping is driven b
 | `PC_AddProfile` | Forward to Network Task, pop page |
 | `PC_DeleteProfile` | Delete profile from LittleFS directly |
 
-`PC_LoadProfile`, `PC_AddProfile`, and `PC_DeleteProfile` carry a `Payload` (variant holding a `ProfilePayload` with the profile name).
+`PC_LoadProfile` and `PC_DeleteProfile` carry a `Payload` variant containing a `ProfilePayload` with the profile name. `PC_AddProfile` does not require a payload.
 
 ### Pages (`Argos_Page.hpp`)
 
@@ -163,7 +165,7 @@ Each tick: `dispatcher()` processes incoming UI commands (which may set a pendin
                     ┌──────────▼───────────────────┐
                     │   ChainTargetDiscovery        │
                     │  SNTP time sync               │
-                    │  mDNS query: "argos-target"   │
+                    │  mDNS query: argos._mqtt      │
                     │  Max 5 retries                │
                     │  On success → ReceiveInfo     │
                     │  On timeout → Idle + error    │
@@ -171,10 +173,10 @@ Each tick: `dispatcher()` processes incoming UI commands (which may set a pendin
                                │ Target found
                     ┌──────────▼───────────────────┐
                     │    ChainReceiveInfo            │
-                    │  HTTP GET /api/info            │
-                    │  Parse JSON → SystemInfoMsg    │
-                    │  Send to UI queue             │
-                    │  Loops indefinitely           │
+                    │  Connect MQTT broker :1883     │
+                    │  Subscribe to argos/info       │
+                    │  Parse JSON → UI queue         │
+                    │  Callback-driven until lost    │
                     └──────────────────────────────┘
 
                     ┌──────────────────────────────┐
@@ -191,17 +193,20 @@ Each tick: `dispatcher()` processes incoming UI commands (which may set a pendin
 - Starts WiFi in SoftAP mode (SSID: `"Argos"`, password: `"clairvoyance"`).
 - DNS server redirects all requests to the ESP32.
 - HTTP server serves the HTML from `root_html.hpp` and handles `POST /save`.
-- Max 3 profiles; writing a 4th returns `E_ProfileSlotFull`.
+- Max 3 profiles; the handler sets `E_ProfileSlotFull` when the directory already contains three `.txt` profile files.
+- Saving returns the network chain to `ChainIdle`; it does not automatically load or connect with the new profile.
 
 ### Target Communication (`ChainReceiveInfo`)
 
-Polls `http://<target-ip>:8080/api/info` and parses JSON fields:
+Connects to `mqtt://<target-ip>:<discovered-port>` with client ID `argos-esp32`, subscribes to `argos/info` at QoS 0, and parses these JSON fields in the MQTT data callback:
 
 host_name, os, os_version, cpu_percent, cpu_cores, cpu_threads, cpu_freq_mhz, cpu_temp, mem_total_mb, mem_used_mb, mem_percent, disk_total_mb, disk_used_mb, disk_percent.
 
 ### Profile Storage
 
-Profiles are stored as text files in LittleFS under `/profile/<name>.txt`. Format is line-delimited key=value pairs (SSID, password, NTP server). The `LFS` class wraps the `esp_littlefs` component.
+Profiles are stored in LittleFS under `/profile/<name>.txt`. Despite the extension, each file currently contains the raw binary representation of the fixed-size `Profile` struct, not line-delimited text. The `LFS` class mounts the `littlefs` partition at `/lfs`; application paths are relative to that mount.
+
+The profile contains an NTP server field, but the current `ChainTargetDiscovery` implementation constructs `SNTP` with the hard-coded server `pool.ntp.org`. The saved value is therefore not yet applied.
 
 ### Data Structures (`network.hpp`)
 
@@ -255,11 +260,14 @@ All queue reads are non-blocking (0 timeout). The UI renders at 50 Hz regardless
 | `SNTP` | `network/ddc_sntp.hpp` | NTP time sync |
 | `HttpClient` | `network/ddc_http_client.hpp` | HTTP client |
 | `HttpServer` | `network/ddc_http_server.hpp` | HTTP server with captive portal mode |
+| `MQTTClient` | `network/ddc_mqtt.hpp` | ESP-MQTT client wrapper used for telemetry |
 | `DNServer` | `network/ddc_dns_server.hpp` | DNS server for captive portal redirection |
 | `LFS` | `thirdparty/ddc_littlefs.hpp` | LittleFS wrapper |
 | `Pin` | `general/ddc_io.hpp` | GPIO pin abstraction |
 
-Component dependencies: `driver u8g2 esp_wifi nvs_flash esp_http_client esp_timer esp_netif esp_littlefs mdns`.
+Component dependencies: `driver u8g2 esp_wifi nvs_flash esp_http_client esp_timer esp_netif esp_littlefs mdns mqtt`.
+
+`u8g2`, `esp_littlefs`, and `espressif__mdns` are not stored in this repository. The current component manifest does not fetch them automatically, so firmware builds from a clean checkout require those local component directories to be prepared first.
 
 
 # Flash Layout
@@ -268,17 +276,17 @@ From `partitions.csv`:
 
 | Name | Offset | Size |
 |---|---|---|
-| nvs | 0x9000 | 0x5000 |
-| otadata | 0xE000 | 0x2000 |
-| phy_init | 0x10000 | 0x1000 |
+| nvs | 0x9000 | 0x6000 |
+| otadata | 0xF000 | 0x2000 |
+| phy_init | 0x11000 | 0x1000 |
 | app0 (OTA) | 0x20000 | 0x140000 (~1.25MB) |
 | app1 (OTA) | 0x160000 | 0x140000 (~1.25MB) |
-| spiffs (LittleFS) | 0x2A0000 | 0x160000 (~1.375MB) |
+| littlefs | 0x2A0000 | 0x160000 (~1.375MB) |
 
 
 # Target Agent (`deploy/`)
 
-The target agent is a companion Go program that runs on the monitored machine (Linux / Windows). It collects system telemetry and exposes it over HTTP, so the ESP32 device can poll it via `ChainReceiveInfo`.
+The target agent is a companion Go program that runs on the monitored machine (Linux / Windows). It collects system telemetry, embeds an MQTT broker, and publishes JSON for the ESP32 device to consume via `ChainReceiveInfo`.
 
 ```
 deploy/
@@ -286,7 +294,7 @@ deploy/
 ├── go.mod / go.sum        # Go module
 ├── cmd/
 │   ├── root.go            # Root command (logo, version, help)
-│   └── start.go           # start subcommand (HTTP/mDNS server)
+│   └── start.go           # start subcommand (MQTT broker, publisher, and mDNS)
 ├── linux/
 │   ├── amd64/
 │   │   └── argos-linux-amd64   # Pre-built binary (x86-64)
@@ -298,9 +306,10 @@ deploy/
 
 ## How It Works
 
-1. **mDNS registration** — uses `zeroconf` to broadcast as `argos-target._http._tcp.local` on port 8080, with a TXT record `path=/api/info`.
-2. **HTTP endpoint** — `GET /api/info` returns a JSON payload with live system metrics.
-3. The ESP32 `ChainTargetDiscovery` resolves the mDNS name, then `ChainReceiveInfo` polls `/api/info` at 1 Hz.
+1. **MQTT broker** — `mochi-mqtt` listens on all interfaces on TCP port `1883`; the current prototype uses its permissive authentication hook.
+2. **mDNS registration** — `zeroconf` advertises the instance `argos` as `_mqtt._tcp.local` on port `1883`, using the monitored machine's hostname and selected local IPv4 address.
+3. **Telemetry publisher** — the agent collects and publishes JSON to `argos/info` every two seconds with QoS 0 and no retained message.
+4. **ESP32 subscriber** — `ChainTargetDiscovery` finds the service and `ChainReceiveInfo` connects, subscribes, parses messages, and forwards `SystemInfoMsg` values to the UI queue.
 
 ## System Info Collected
 
@@ -330,10 +339,15 @@ GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o windows/argos-windows-amd
 The `deploy/` agent is a command-line program built with `github.com/spf13/cobra`.
 
 - **`argos`** (no args) — prints a centered, colorized ASCII logo/banner with version and attribution.
-- **`argos start`** — starts the HTTP/mDNS server that the ESP32 polls.
+- **`argos start`** — starts the MQTT broker, telemetry publisher, and mDNS advertisement.
 - **`argos -v, --version`** — shows the agent version (via logo banner).
 - **`argos -h, --help`** — shows usage and available commands.
-- **`argos start -v, --verbose`** — starts the server with verbose logging (prints collected JSON on each request).
+- **`argos start -v, --verbose`** — starts the service with verbose logging and prints each collected JSON payload.
+
+
+# argosctl (`argosctl/`)
+
+`argosctl` is a separate Bubble Tea/Lip Gloss terminal UI prototype. Its current Start and Stop operations only toggle state inside the TUI model; they do not launch, supervise, or terminate the `deploy/` agent. It should not yet be treated as a service manager.
 
 
 
@@ -343,3 +357,15 @@ The `deploy/` agent is a command-line program built with `github.com/spf13/cobra
 - **Target**: ESP32-C3.
 - **Main component sources**: `ui.cpp`, `input.cpp`, `network.cpp`, `main.cpp` + globbed `*.cpp`.
 - **Target agent**: Go 1.26.3, cross-compiled for Linux (amd64/arm64) and Windows (amd64).
+- **argosctl prototype**: Go 1.27.0.
+
+
+# Known Implementation Constraints
+
+- Firmware dependencies are not reproducibly provisioned by the current manifest.
+- The captive-portal save handler uses a fixed 256-byte request buffer and still needs explicit bounds, field, path, URL-decoding, and write-result validation.
+- Saving a profile and loading a profile are separate user actions.
+- The profile NTP value is stored but not currently honored.
+- MQTT and SoftAP credentials are suitable only for a trusted prototype network.
+- MQTT callbacks update network-task state asynchronously; production hardening should serialize this state ownership.
+- No automated tests or CI configuration are present in the repository.
