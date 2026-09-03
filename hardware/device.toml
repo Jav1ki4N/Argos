@@ -1,0 +1,49 @@
+#============================================
+# device.toml
+# See markdown files for detailed information
+#============================================
+
+[device] # device metadata
+model        = "Argos"
+series       = "LADC"
+category     = "HOMELAB"
+number       = "01"
+description  = "Wireless system metrics monitor"
+
+[[parts]]
+id          = "BOARD-A"
+type        = "PCB"
+description = "Front display assembly"
+
+[[parts]]
+id          = "BOARD-B"
+type        = "PCB"
+description = "Main system assembly"
+
+[[parts]]
+id          = "SHELL"
+type        = "mechanical"
+description = "Enclosure assembly"
+
+# variants
+
+[variants.board_a.A01]
+display      = "ST7789"
+touch        = true
+interconnect = "B2B"
+
+[variants.board_b.B01]
+controller   = "ESP32-S3-WROOM-1"
+interconnect = "B2B"
+
+[variants.shell.S00]
+model    = "undefined"
+material = "undefined"
+
+# ADJUSTABLE #
+
+[configuration]
+
+board_a = "A01"
+board_b = "B01"
+shell   = "S00"
